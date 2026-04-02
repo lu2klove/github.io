@@ -77,9 +77,39 @@
       font-weight: 600;
       margin-top: 8px;
     }
+
+    /* TradingView */
+    .tv-box {
+      height: 360px;
+      width: 100%;
+      background: #0f172a;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .tradingview-widget-container {
+      width: 100%;
+      height: 100%;
+    }
+    .tradingview-widget-container__widget {
+      width: 100%;
+      height: calc(100% - 32px);
+    }
+    .tradingview-widget-copyright {
+      font-size: 12px;
+      line-height: 32px;
+      text-align: right;
+      padding: 0 8px;
+      color: #94a3b8;
+      background: #0f172a;
+    }
+    .tradingview-widget-copyright a {
+      color: #94a3b8;
+      text-decoration: none;
+    }
+
     @media (max-width: 960px) {
       .grid { grid-template-columns: 1fr; }
-      iframe, img { height: 320px; }
+      iframe, img, .tv-box { height: 320px; }
     }
   </style>
 </head>
@@ -87,24 +117,174 @@
   <div class="wrap">
     <h1>📊 시장 대시보드</h1>
     <div class="sub">
-      코스피/코스닥은 네이버 금융 이미지, 금리/채권/환율/유가는 FRED 기반으로 구성
+      코스피/코스닥은 네이버 금융 이미지, 금리/채권은 FRED, 환율/금/국제유가는 TradingView 위젯 기반으로 구성
     </div>
 
     <div class="grid">
+      <!-- 국제유가 -->
       <section class="card">
         <h2>🛢 국제유가 (WTI + Brent)</h2>
         <div class="inner">
-          <iframe src="https://fred.stlouisfed.org/graph/?id=DCOILWTICO,DCOILBRENTEU"></iframe>
+          <div class="tv-box">
+            <div class="tradingview-widget-container">
+              <div class="tradingview-widget-container__widget"></div>
+              <div class="tradingview-widget-copyright">
+                <a href="https://kr.tradingview.com/" rel="noopener nofollow" target="_blank">TradingView 제공</a>
+              </div>
+              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
+              {
+                "symbols": [
+                  ["TVC:USOIL|1D"],
+                  ["TVC:UKOIL|1D"]
+                ],
+                "chartOnly": false,
+                "width": "100%",
+                "height": "100%",
+                "locale": "kr",
+                "colorTheme": "dark",
+                "autosize": true,
+                "showVolume": false,
+                "showMA": false,
+                "hideDateRanges": false,
+                "hideMarketStatus": false,
+                "hideSymbolLogo": false,
+                "scalePosition": "right",
+                "scaleMode": "Normal",
+                "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
+                "fontSize": "12",
+                "noTimeScale": false,
+                "valuesTracking": "1",
+                "changeMode": "price-and-percent",
+                "chartType": "area",
+                "maLineColor": "#2962FF",
+                "maLineWidth": 1,
+                "maLength": 9,
+                "lineWidth": 2,
+                "lineType": 0,
+                "dateRanges": [
+                  "1d|1",
+                  "1m|30",
+                  "3m|60",
+                  "12m|1D",
+                  "60m|1W",
+                  "all|1M"
+                ]
+              }
+              </script>
+            </div>
+          </div>
         </div>
       </section>
 
+      <!-- 환율 -->
       <section class="card">
         <h2>💱 USD/KRW 환율</h2>
         <div class="inner">
-          <iframe src="https://fred.stlouisfed.org/graph/?id=DEXKOUS"></iframe>
+          <div class="tv-box">
+            <div class="tradingview-widget-container">
+              <div class="tradingview-widget-container__widget"></div>
+              <div class="tradingview-widget-copyright">
+                <a href="https://kr.tradingview.com/symbols/USDKRW/" rel="noopener nofollow" target="_blank">TradingView 제공</a>
+              </div>
+              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
+              {
+                "symbols": [
+                  ["FX_IDC:USDKRW|1D"]
+                ],
+                "chartOnly": false,
+                "width": "100%",
+                "height": "100%",
+                "locale": "kr",
+                "colorTheme": "dark",
+                "autosize": true,
+                "showVolume": false,
+                "showMA": false,
+                "hideDateRanges": false,
+                "hideMarketStatus": false,
+                "hideSymbolLogo": false,
+                "scalePosition": "right",
+                "scaleMode": "Normal",
+                "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
+                "fontSize": "12",
+                "noTimeScale": false,
+                "valuesTracking": "1",
+                "changeMode": "price-and-percent",
+                "chartType": "area",
+                "maLineColor": "#2962FF",
+                "maLineWidth": 1,
+                "maLength": 9,
+                "lineWidth": 2,
+                "lineType": 0,
+                "dateRanges": [
+                  "1d|1",
+                  "1m|30",
+                  "3m|60",
+                  "12m|1D",
+                  "60m|1W",
+                  "all|1M"
+                ]
+              }
+              </script>
+            </div>
+          </div>
         </div>
       </section>
 
+      <!-- 금 -->
+      <section class="card">
+        <h2>🥇 금 (XAU/USD)</h2>
+        <div class="inner">
+          <div class="tv-box">
+            <div class="tradingview-widget-container">
+              <div class="tradingview-widget-container__widget"></div>
+              <div class="tradingview-widget-copyright">
+                <a href="https://kr.tradingview.com/symbols/XAUUSD/" rel="noopener nofollow" target="_blank">TradingView 제공</a>
+              </div>
+              <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
+              {
+                "symbols": [
+                  ["OANDA:XAUUSD|1D"]
+                ],
+                "chartOnly": false,
+                "width": "100%",
+                "height": "100%",
+                "locale": "kr",
+                "colorTheme": "dark",
+                "autosize": true,
+                "showVolume": false,
+                "showMA": false,
+                "hideDateRanges": false,
+                "hideMarketStatus": false,
+                "hideSymbolLogo": false,
+                "scalePosition": "right",
+                "scaleMode": "Normal",
+                "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
+                "fontSize": "12",
+                "noTimeScale": false,
+                "valuesTracking": "1",
+                "changeMode": "price-and-percent",
+                "chartType": "area",
+                "maLineColor": "#2962FF",
+                "maLineWidth": 1,
+                "maLength": 9,
+                "lineWidth": 2,
+                "lineType": 0,
+                "dateRanges": [
+                  "1d|1",
+                  "1m|30",
+                  "3m|60",
+                  "12m|1D",
+                  "60m|1W",
+                  "all|1M"
+                ]
+              }
+              </script>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 코스피 -->
       <section class="card">
         <h2>📈 코스피</h2>
         <div class="inner">
@@ -116,6 +296,7 @@
         </div>
       </section>
 
+      <!-- 코스닥 -->
       <section class="card">
         <h2>📉 코스닥</h2>
         <div class="inner">
@@ -127,6 +308,7 @@
         </div>
       </section>
 
+      <!-- 미국 국채 -->
       <section class="card">
         <h2>🏦 미국 국채 2년 · 10년 · 30년</h2>
         <div class="inner">
@@ -134,6 +316,7 @@
         </div>
       </section>
 
+      <!-- 미국 기준금리 -->
       <section class="card">
         <h2>🏛 미국 기준금리 (Effective Fed Funds Rate)</h2>
         <div class="inner">
@@ -141,6 +324,7 @@
         </div>
       </section>
 
+      <!-- 한국 국채 -->
       <section class="card">
         <h2>🏦 한국 국채 10년</h2>
         <div class="inner">
@@ -148,6 +332,7 @@
         </div>
       </section>
 
+      <!-- 한국 기준금리 -->
       <section class="card">
         <h2>🏛 한국 기준금리</h2>
         <div class="inner">
@@ -155,6 +340,7 @@
         </div>
       </section>
 
+      <!-- 리튬 -->
       <section class="card" style="grid-column: 1 / -1;">
         <h2>🔋 리튬</h2>
         <div class="inner">
