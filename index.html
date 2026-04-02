@@ -3,55 +3,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Notion Market Dashboard Plus</title>
+  <title>시장 대시보드</title>
   <style>
-    :root {
-      --bg: #f6f7fb;
-      --card: #ffffff;
-      --text: #111827;
-      --muted: #6b7280;
-      --line: #e5e7eb;
-      --shadow: 0 8px 24px rgba(17, 24, 39, 0.06);
-      --radius: 18px;
-    }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans KR", Arial, sans-serif;
-      color: var(--text);
-      background: var(--bg);
+      background: #0b1220;
+      color: #e5e7eb;
     }
     .wrap {
-      max-width: 1480px;
+      max-width: 1400px;
       margin: 0 auto;
-      padding: 20px 16px 32px;
-    }
-    .hero {
-      margin-bottom: 16px;
-      padding: 20px 22px;
-      background: linear-gradient(135deg, #ffffff 0%, #f3f7ff 100%);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
+      padding: 20px;
     }
     h1 {
       margin: 0 0 8px;
       font-size: 28px;
-      line-height: 1.2;
     }
     .sub {
-      margin: 0;
-      color: var(--muted);
+      color: #94a3b8;
+      margin-bottom: 20px;
       font-size: 14px;
-      line-height: 1.7;
-    }
-    .ticker {
-      margin-bottom: 16px;
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      overflow: hidden;
     }
     .grid {
       display: grid;
@@ -59,676 +32,152 @@
       gap: 16px;
     }
     .card {
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 16px;
       overflow: hidden;
-      min-height: 420px;
-      display: flex;
-      flex-direction: column;
+      box-shadow: 0 8px 24px rgba(0,0,0,.25);
     }
-    .card-head {
-      padding: 16px 18px 8px;
-      border-bottom: 1px solid #f3f4f6;
-    }
-    .card-title {
+    .card h2 {
       margin: 0;
-      font-size: 18px;
-      font-weight: 700;
+      padding: 14px 16px;
+      font-size: 16px;
+      border-bottom: 1px solid #1f2937;
+      background: #0f172a;
     }
-    .card-desc {
-      margin: 6px 0 0;
-      color: var(--muted);
+    .inner {
+      padding: 12px;
+    }
+    iframe, img {
+      width: 100%;
+      height: 360px;
+      border: 0;
+      border-radius: 10px;
+      background: #fff;
+      display: block;
+    }
+    .naver-img {
+      object-fit: cover;
+      background: #fff;
+      padding: 8px;
+    }
+    .note {
+      color: #94a3b8;
       font-size: 13px;
       line-height: 1.5;
+      padding: 12px 16px 16px;
     }
-    .card-body {
-      padding: 0 8px 8px;
-      flex: 1;
-      min-height: 340px;
+    .btn {
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: 10px;
+      background: #2563eb;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 600;
+      margin-top: 8px;
     }
-    .tradingview-widget-container,
-    .tradingview-widget-container__widget {
-      width: 100%;
-      height: 100%;
-    }
-    .footer-note {
-      margin-top: 16px;
-      padding: 14px 16px;
-      color: var(--muted);
-      font-size: 12px;
-      line-height: 1.7;
-      background: rgba(255,255,255,0.85);
-      border: 1px dashed var(--line);
-      border-radius: 14px;
-    }
-    code {
-      background: #eef2ff;
-      padding: 2px 6px;
-      border-radius: 6px;
-      font-size: 12px;
-    }
-    @media (max-width: 900px) {
+    @media (max-width: 960px) {
       .grid { grid-template-columns: 1fr; }
-      .card { min-height: 390px; }
-      .card-body { min-height: 310px; }
+      iframe, img { height: 320px; }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <section class="hero">
-      <h1>📊 Notion 시장 대시보드 Plus</h1>
-      <p class="sub">
-        노션에 넣기 좋은 단일 HTML 페이지입니다. 상단 티커에는 유가·리튬·금·코스피·코스닥 프록시·환율·한국/미국 국채수익률·한국/미국 기준금리를 넣었고,
-        아래 2열 카드에는 차트를 배치했습니다. 코스닥은 무료 위젯 제한 때문에 <strong>KODEX 코스닥150 ETF(229200)</strong> 프록시를 사용했고,
-        리튬은 공개 위젯 기준으로 <strong>리튬 하이드록사이드 선물 프록시(COMEX:LTH1!)</strong>를 사용했습니다.
-        미국 기준금리는 <strong>ECONOMICS:USINTR</strong>, 한국 기준금리는 <strong>ECONOMICS:KRINTR</strong>로 넣었습니다.
-      </p>
-    </section>
+    <h1>📊 시장 대시보드</h1>
+    <div class="sub">
+      코스피/코스닥은 네이버 금융 이미지, 금리/채권/환율/유가는 FRED 기반으로 구성
+    </div>
 
-    <section class="ticker">
-      <div class="tradingview-widget-container">
-        <div class="tradingview-widget-container__widget"></div>
-        <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-ticker-tape.js" async>
-        {
-          "symbols": [
-            {"proName": "TVC:USOIL", "title": "WTI"},
-            {"proName": "TVC:UKOIL", "title": "Brent"},
-            {"proName": "COMEX:LTH1!", "title": "Lithium Proxy"},
-            {"proName": "TVC:GOLD", "title": "Gold"},
-            {"proName": "TVC:KOSPI", "title": "KOSPI"},
-            {"proName": "KRX:229200", "title": "KOSDAQ150 ETF"},
-            {"proName": "FX_IDC:USDKRW", "title": "USD/KRW"},
-            {"proName": "TVC:KR03Y", "title": "KR 3Y"},
-            {"proName": "TVC:KR10Y", "title": "KR 10Y"},
-            {"proName": "TVC:US02Y", "title": "US 2Y"},
-            {"proName": "TVC:US10Y", "title": "US 10Y"},
-            {"proName": "TVC:US30Y", "title": "US 30Y"},
-            {"proName": "ECONOMICS:KRINTR", "title": "KR Base Rate"},
-            {"proName": "ECONOMICS:USINTR", "title": "US Base Rate"}
-          ],
-          "showSymbolLogo": false,
-          "isTransparent": true,
-          "displayMode": "adaptive",
-          "colorTheme": "light",
-          "locale": "kr"
-        }
-        </script>
-      </div>
-    </section>
-
-    <section class="grid">
-
-      <article class="card">
-        <div class="card-head">
-          <h2 class="card-title">🛢 국제유가 (WTI)</h2>
-          <p class="card-desc">대표 국제유가 차트입니다. Brent는 상단 티커에 함께 넣어두었습니다.</p>
+    <div class="grid">
+      <section class="card">
+        <h2>🛢 국제유가 (WTI + Brent)</h2>
+        <div class="inner">
+          <iframe src="https://fred.stlouisfed.org/graph/?id=DCOILWTICO,DCOILBRENTEU"></iframe>
         </div>
-        <div class="card-body">
-          <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-            {
-              "symbols": [["TVC:USOIL|1D"]],
-              "chartOnly": false,
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "colorTheme": "light",
-              "autosize": true,
-              "showVolume": false,
-              "showMA": false,
-              "hideDateRanges": false,
-              "scalePosition": "right",
-              "scaleMode": "Normal",
-              "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
-              "fontSize": "10",
-              "noTimeScale": false,
-              "valuesTracking": "1",
-              "changeMode": "price-and-percent",
-              "chartType": "area",
-              "lineWidth": 2,
-              "lineType": 0,
-              "dateRanges": ["1d|1", "1m|30", "3m|60", "12m|1D", "60m|1W", "all|1M"],
-              "upColor": "#2563eb",
-              "downColor": "#dc2626",
-              "borderUpColor": "#2563eb",
-              "borderDownColor": "#dc2626",
-              "wickUpColor": "#2563eb",
-              "wickDownColor": "#dc2626"
-            }
-            </script>
+      </section>
+
+      <section class="card">
+        <h2>💱 USD/KRW 환율</h2>
+        <div class="inner">
+          <iframe src="https://fred.stlouisfed.org/graph/?id=DEXKOUS"></iframe>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>📈 코스피</h2>
+        <div class="inner">
+          <img
+            class="naver-img"
+            src="https://ssl.pstatic.net/imgfinance/chart/main/KOSPI.png"
+            alt="코스피 차트"
+          />
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>📉 코스닥</h2>
+        <div class="inner">
+          <img
+            class="naver-img"
+            src="https://ssl.pstatic.net/imgfinance/chart/main/KOSDAQ.png"
+            alt="코스닥 차트"
+          />
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>🏦 미국 국채 2년 · 10년 · 30년</h2>
+        <div class="inner">
+          <iframe src="https://fred.stlouisfed.org/graph/?id=DGS2,DGS10,DGS30"></iframe>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>🏛 미국 기준금리 (Effective Fed Funds Rate)</h2>
+        <div class="inner">
+          <iframe src="https://fred.stlouisfed.org/graph/?id=FEDFUNDS"></iframe>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>🏦 한국 국채 10년</h2>
+        <div class="inner">
+          <iframe src="https://fred.stlouisfed.org/graph/?id=IRLTLT01KRM156N"></iframe>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>🏛 한국 기준금리</h2>
+        <div class="inner">
+          <iframe src="https://fred.stlouisfed.org/graph/?id=INTDSRKRM193N"></iframe>
+        </div>
+      </section>
+
+      <section class="card" style="grid-column: 1 / -1;">
+        <h2>🔋 리튬</h2>
+        <div class="inner">
+          <div style="padding:18px; background:#0f172a; border-radius:12px;">
+            <div style="font-size:16px; font-weight:700; margin-bottom:8px;">무료 임베드로는 가장 까다로운 항목</div>
+            <div style="color:#cbd5e1; line-height:1.6;">
+              리튬은 무료로 안정적으로 박히는 공개 차트 소스가 약합니다.
+              우선 아래 버튼으로 공식 페이지를 여는 방식이 가장 덜 깨집니다.
+            </div>
+            <a
+              class="btn"
+              href="https://ko.tradingeconomics.com/commodity/lithium"
+              target="_blank" rel="noopener noreferrer"
+            >
+              리튬 차트 열기
+            </a>
           </div>
         </div>
-      </article>
-
-      <article class="card">
-        <div class="card-head">
-          <h2 class="card-title">🔋 리튬</h2>
-          <p class="card-desc">무료 공개 위젯 제한을 피해 리튬 하이드록사이드 연속물 프록시를 사용했습니다.</p>
+        <div class="note">
+          기준: Trading Economics는 리튬 가격을 중국에서 거래되는 배터리급 탄산리튬 기준으로 설명합니다.
         </div>
-        <div class="card-body">
-          <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-            {
-              "symbols": [["COMEX:LTH1!|1D"]],
-              "chartOnly": false,
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "colorTheme": "light",
-              "autosize": true,
-              "showVolume": false,
-              "showMA": false,
-              "hideDateRanges": false,
-              "scalePosition": "right",
-              "scaleMode": "Normal",
-              "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
-              "fontSize": "10",
-              "noTimeScale": false,
-              "valuesTracking": "1",
-              "changeMode": "price-and-percent",
-              "chartType": "area",
-              "lineWidth": 2,
-              "lineType": 0,
-              "dateRanges": ["1d|1", "1m|30", "3m|60", "12m|1D", "60m|1W", "all|1M"],
-              "upColor": "#7c3aed",
-              "downColor": "#dc2626",
-              "borderUpColor": "#7c3aed",
-              "borderDownColor": "#dc2626",
-              "wickUpColor": "#7c3aed",
-              "wickDownColor": "#dc2626"
-            }
-            </script>
-          </div>
-        </div>
-      </article>
-
-      <article class="card">
-        <div class="card-head">
-          <h2 class="card-title">🥇 금</h2>
-          <p class="card-desc">달러 기준 금 가격 공개 차트입니다.</p>
-        </div>
-        <div class="card-body">
-          <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-            {
-              "symbols": [["TVC:GOLD|1D"]],
-              "chartOnly": false,
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "colorTheme": "light",
-              "autosize": true,
-              "showVolume": false,
-              "showMA": false,
-              "hideDateRanges": false,
-              "scalePosition": "right",
-              "scaleMode": "Normal",
-              "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
-              "fontSize": "10",
-              "noTimeScale": false,
-              "valuesTracking": "1",
-              "changeMode": "price-and-percent",
-              "chartType": "area",
-              "lineWidth": 2,
-              "lineType": 0,
-              "dateRanges": ["1d|1", "1m|30", "3m|60", "12m|1D", "60m|1W", "all|1M"],
-              "upColor": "#ca8a04",
-              "downColor": "#dc2626",
-              "borderUpColor": "#ca8a04",
-              "borderDownColor": "#dc2626",
-              "wickUpColor": "#ca8a04",
-              "wickDownColor": "#dc2626"
-            }
-            </script>
-          </div>
-        </div>
-      </article>
-
-      <article class="card">
-        <div class="card-head">
-          <h2 class="card-title">📈 코스피</h2>
-          <p class="card-desc">코스피 지수 공개 차트입니다. TVC 심볼을 사용했습니다.</p>
-        </div>
-        <div class="card-body">
-          <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-            {
-              "symbols": [["TVC:KOSPI|1D"]],
-              "chartOnly": false,
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "colorTheme": "light",
-              "autosize": true,
-              "showVolume": false,
-              "showMA": false,
-              "hideDateRanges": false,
-              "scalePosition": "right",
-              "scaleMode": "Normal",
-              "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
-              "fontSize": "10",
-              "noTimeScale": false,
-              "valuesTracking": "1",
-              "changeMode": "price-and-percent",
-              "chartType": "area",
-              "lineWidth": 2,
-              "lineType": 0,
-              "dateRanges": ["1d|1", "1m|30", "3m|60", "12m|1D", "60m|1W", "all|1M"],
-              "upColor": "#2563eb",
-              "downColor": "#dc2626",
-              "borderUpColor": "#2563eb",
-              "borderDownColor": "#dc2626",
-              "wickUpColor": "#2563eb",
-              "wickDownColor": "#dc2626"
-            }
-            </script>
-          </div>
-        </div>
-      </article>
-
-      <article class="card">
-        <div class="card-head">
-          <h2 class="card-title">📉 코스닥150 ETF 프록시</h2>
-          <p class="card-desc">무료 위젯 제한 때문에 KODEX 코스닥150 ETF(229200) 프록시를 사용했습니다.</p>
-        </div>
-        <div class="card-body">
-          <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-            {
-              "symbols": [["KRX:229200|1D"]],
-              "chartOnly": false,
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "colorTheme": "light",
-              "autosize": true,
-              "showVolume": false,
-              "showMA": false,
-              "hideDateRanges": false,
-              "scalePosition": "right",
-              "scaleMode": "Normal",
-              "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
-              "fontSize": "10",
-              "noTimeScale": false,
-              "valuesTracking": "1",
-              "changeMode": "price-and-percent",
-              "chartType": "area",
-              "lineWidth": 2,
-              "lineType": 0,
-              "dateRanges": ["1d|1", "1m|30", "3m|60", "12m|1D", "60m|1W", "all|1M"],
-              "upColor": "#0891b2",
-              "downColor": "#dc2626",
-              "borderUpColor": "#0891b2",
-              "borderDownColor": "#dc2626",
-              "wickUpColor": "#0891b2",
-              "wickDownColor": "#dc2626"
-            }
-            </script>
-          </div>
-        </div>
-      </article>
-
-      <article class="card">
-        <div class="card-head">
-          <h2 class="card-title">💱 환율 (USD/KRW)</h2>
-          <p class="card-desc">달러/원 환율 공개 차트입니다.</p>
-        </div>
-        <div class="card-body">
-          <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-            {
-              "symbols": [["FX_IDC:USDKRW|1D"]],
-              "chartOnly": false,
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "colorTheme": "light",
-              "autosize": true,
-              "showVolume": false,
-              "showMA": false,
-              "hideDateRanges": false,
-              "scalePosition": "right",
-              "scaleMode": "Normal",
-              "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
-              "fontSize": "10",
-              "noTimeScale": false,
-              "valuesTracking": "1",
-              "changeMode": "price-and-percent",
-              "chartType": "area",
-              "lineWidth": 2,
-              "lineType": 0,
-              "dateRanges": ["1d|1", "1m|30", "3m|60", "12m|1D", "60m|1W", "all|1M"],
-              "upColor": "#16a34a",
-              "downColor": "#dc2626",
-              "borderUpColor": "#16a34a",
-              "borderDownColor": "#dc2626",
-              "wickUpColor": "#16a34a",
-              "wickDownColor": "#dc2626"
-            }
-            </script>
-          </div>
-        </div>
-      </article>
-
-      <article class="card">
-        <div class="card-head">
-          <h2 class="card-title">🏦 한국 국채 3년 (수익률)</h2>
-          <p class="card-desc">한국 3년 국채 수익률 차트입니다.</p>
-        </div>
-        <div class="card-body">
-          <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-            {
-              "symbols": [["TVC:KR03Y|1D"]],
-              "chartOnly": false,
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "colorTheme": "light",
-              "autosize": true,
-              "showVolume": false,
-              "showMA": false,
-              "hideDateRanges": false,
-              "scalePosition": "right",
-              "scaleMode": "Normal",
-              "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
-              "fontSize": "10",
-              "noTimeScale": false,
-              "valuesTracking": "1",
-              "changeMode": "price-and-percent",
-              "chartType": "area",
-              "lineWidth": 2,
-              "lineType": 0,
-              "dateRanges": ["1d|1", "1m|30", "3m|60", "12m|1D", "60m|1W", "all|1M"],
-              "upColor": "#4f46e5",
-              "downColor": "#dc2626",
-              "borderUpColor": "#4f46e5",
-              "borderDownColor": "#dc2626",
-              "wickUpColor": "#4f46e5",
-              "wickDownColor": "#dc2626"
-            }
-            </script>
-          </div>
-        </div>
-      </article>
-
-      <article class="card">
-        <div class="card-head">
-          <h2 class="card-title">🏦 한국 국채 10년 (수익률)</h2>
-          <p class="card-desc">한국 10년 국채 수익률 차트입니다.</p>
-        </div>
-        <div class="card-body">
-          <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-            {
-              "symbols": [["TVC:KR10Y|1D"]],
-              "chartOnly": false,
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "colorTheme": "light",
-              "autosize": true,
-              "showVolume": false,
-              "showMA": false,
-              "hideDateRanges": false,
-              "scalePosition": "right",
-              "scaleMode": "Normal",
-              "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
-              "fontSize": "10",
-              "noTimeScale": false,
-              "valuesTracking": "1",
-              "changeMode": "price-and-percent",
-              "chartType": "area",
-              "lineWidth": 2,
-              "lineType": 0,
-              "dateRanges": ["1d|1", "1m|30", "3m|60", "12m|1D", "60m|1W", "all|1M"],
-              "upColor": "#4f46e5",
-              "downColor": "#dc2626",
-              "borderUpColor": "#4f46e5",
-              "borderDownColor": "#dc2626",
-              "wickUpColor": "#4f46e5",
-              "wickDownColor": "#dc2626"
-            }
-            </script>
-          </div>
-        </div>
-      </article>
-
-      <article class="card">
-        <div class="card-head">
-          <h2 class="card-title">🇺🇸 미국 국채 2년 (수익률)</h2>
-          <p class="card-desc">미국 2년 국채 수익률 차트입니다.</p>
-        </div>
-        <div class="card-body">
-          <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-            {
-              "symbols": [["TVC:US02Y|1D"]],
-              "chartOnly": false,
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "colorTheme": "light",
-              "autosize": true,
-              "showVolume": false,
-              "showMA": false,
-              "hideDateRanges": false,
-              "scalePosition": "right",
-              "scaleMode": "Normal",
-              "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
-              "fontSize": "10",
-              "noTimeScale": false,
-              "valuesTracking": "1",
-              "changeMode": "price-and-percent",
-              "chartType": "area",
-              "lineWidth": 2,
-              "lineType": 0,
-              "dateRanges": ["1d|1", "1m|30", "3m|60", "12m|1D", "60m|1W", "all|1M"],
-              "upColor": "#0f766e",
-              "downColor": "#dc2626",
-              "borderUpColor": "#0f766e",
-              "borderDownColor": "#dc2626",
-              "wickUpColor": "#0f766e",
-              "wickDownColor": "#dc2626"
-            }
-            </script>
-          </div>
-        </div>
-      </article>
-
-      <article class="card">
-        <div class="card-head">
-          <h2 class="card-title">🇺🇸 미국 국채 10년 (수익률)</h2>
-          <p class="card-desc">미국 10년 국채 수익률 차트입니다.</p>
-        </div>
-        <div class="card-body">
-          <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-            {
-              "symbols": [["TVC:US10Y|1D"]],
-              "chartOnly": false,
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "colorTheme": "light",
-              "autosize": true,
-              "showVolume": false,
-              "showMA": false,
-              "hideDateRanges": false,
-              "scalePosition": "right",
-              "scaleMode": "Normal",
-              "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
-              "fontSize": "10",
-              "noTimeScale": false,
-              "valuesTracking": "1",
-              "changeMode": "price-and-percent",
-              "chartType": "area",
-              "lineWidth": 2,
-              "lineType": 0,
-              "dateRanges": ["1d|1", "1m|30", "3m|60", "12m|1D", "60m|1W", "all|1M"],
-              "upColor": "#0f766e",
-              "downColor": "#dc2626",
-              "borderUpColor": "#0f766e",
-              "borderDownColor": "#dc2626",
-              "wickUpColor": "#0f766e",
-              "wickDownColor": "#dc2626"
-            }
-            </script>
-          </div>
-        </div>
-      </article>
-
-      <article class="card">
-        <div class="card-head">
-          <h2 class="card-title">🇺🇸 미국 국채 30년 (수익률)</h2>
-          <p class="card-desc">미국 30년 국채 수익률 차트입니다.</p>
-        </div>
-        <div class="card-body">
-          <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-            {
-              "symbols": [["TVC:US30Y|1D"]],
-              "chartOnly": false,
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "colorTheme": "light",
-              "autosize": true,
-              "showVolume": false,
-              "showMA": false,
-              "hideDateRanges": false,
-              "scalePosition": "right",
-              "scaleMode": "Normal",
-              "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
-              "fontSize": "10",
-              "noTimeScale": false,
-              "valuesTracking": "1",
-              "changeMode": "price-and-percent",
-              "chartType": "area",
-              "lineWidth": 2,
-              "lineType": 0,
-              "dateRanges": ["1d|1", "1m|30", "3m|60", "12m|1D", "60m|1W", "all|1M"],
-              "upColor": "#0f766e",
-              "downColor": "#dc2626",
-              "borderUpColor": "#0f766e",
-              "borderDownColor": "#dc2626",
-              "wickUpColor": "#0f766e",
-              "wickDownColor": "#dc2626"
-            }
-            </script>
-          </div>
-        </div>
-      </article>
-
-      <article class="card">
-        <div class="card-head">
-          <h2 class="card-title">🏛 한국 기준금리</h2>
-          <p class="card-desc">TradingView 경제지표 기준 South Korea Interest Rate 차트입니다.</p>
-        </div>
-        <div class="card-body">
-          <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-            {
-              "symbols": [["ECONOMICS:KRINTR|1D"]],
-              "chartOnly": false,
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "colorTheme": "light",
-              "autosize": true,
-              "showVolume": false,
-              "showMA": false,
-              "hideDateRanges": false,
-              "scalePosition": "right",
-              "scaleMode": "Normal",
-              "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
-              "fontSize": "10",
-              "noTimeScale": false,
-              "valuesTracking": "1",
-              "changeMode": "price-and-percent",
-              "chartType": "area",
-              "lineWidth": 2,
-              "lineType": 0,
-              "dateRanges": ["1d|1", "1m|30", "3m|60", "12m|1D", "60m|1W", "all|1M"],
-              "upColor": "#b45309",
-              "downColor": "#dc2626",
-              "borderUpColor": "#b45309",
-              "borderDownColor": "#dc2626",
-              "wickUpColor": "#b45309",
-              "wickDownColor": "#dc2626"
-            }
-            </script>
-          </div>
-        </div>
-      </article>
-
-      <article class="card">
-        <div class="card-head">
-          <h2 class="card-title">🏛 미국 기준금리</h2>
-          <p class="card-desc">TradingView 경제지표 기준 United States Interest Rate 차트입니다.</p>
-        </div>
-        <div class="card-body">
-          <div class="tradingview-widget-container">
-            <div class="tradingview-widget-container__widget"></div>
-            <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js" async>
-            {
-              "symbols": [["ECONOMICS:USINTR|1D"]],
-              "chartOnly": false,
-              "width": "100%",
-              "height": "100%",
-              "locale": "kr",
-              "colorTheme": "light",
-              "autosize": true,
-              "showVolume": false,
-              "showMA": false,
-              "hideDateRanges": false,
-              "scalePosition": "right",
-              "scaleMode": "Normal",
-              "fontFamily": "-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Noto Sans KR, Arial, sans-serif",
-              "fontSize": "10",
-              "noTimeScale": false,
-              "valuesTracking": "1",
-              "changeMode": "price-and-percent",
-              "chartType": "area",
-              "lineWidth": 2,
-              "lineType": 0,
-              "dateRanges": ["1d|1", "1m|30", "3m|60", "12m|1D", "60m|1W", "all|1M"],
-              "upColor": "#b45309",
-              "downColor": "#dc2626",
-              "borderUpColor": "#b45309",
-              "borderDownColor": "#dc2626",
-              "wickUpColor": "#b45309",
-              "wickDownColor": "#dc2626"
-            }
-            </script>
-          </div>
-        </div>
-      </article>
-
-    </section>
-
-    <section class="footer-note">
-      <strong>업데이트 포인트</strong><br />
-      이번 버전에는 <code>TVC:US02Y</code>, <code>TVC:US10Y</code>, <code>TVC:US30Y</code>,
-      <code>ECONOMICS:KRINTR</code>, <code>ECONOMICS:USINTR</code>를 추가했습니다.
-      TradingView 심볼 페이지 기준으로 미국 2년·10년·30년 국채수익률과 한국/미국 기준금리 페이지가 각각 확인됩니다.
-      일부 브라우저 확장 프로그램이나 추적방지 설정 때문에 위젯이 늦게 뜰 수 있습니다.
-    </section>
+      </section>
+    </div>
   </div>
 </body>
 </html>
