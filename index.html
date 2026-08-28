@@ -77,9 +77,9 @@
   body.text-scale-90{ zoom:0.9; }
   body.text-scale-115{ zoom:1.15; }
   body.text-scale-130{ zoom:1.3; }
-  body.text-scale-90 .settings-sheet{ zoom:1.1111; }
-  body.text-scale-115 .settings-sheet{ zoom:0.8696; }
-  body.text-scale-130 .settings-sheet{ zoom:0.7692; }
+  body.text-scale-90 .bottom-sheet{ zoom:1.1111; }
+  body.text-scale-115 .bottom-sheet{ zoom:0.8696; }
+  body.text-scale-130 .bottom-sheet{ zoom:0.7692; }
 
   .app{
     max-width:480px;
@@ -275,6 +275,16 @@
     right:1px;
     font-size:11px;
     line-height:1;
+  }
+  .cell.unsettled::before{
+    content:'';
+    position:absolute;
+    top:2px;
+    left:2px;
+    width:6px;
+    height:6px;
+    border-radius:50%;
+    background:var(--brick);
   }
   .cell .dot{
     width:5px; height:5px;
@@ -504,7 +514,7 @@
   .sheet-backdrop{
     position:fixed; inset:0;
     background:rgba(0,0,0,.35);
-    z-index:900;
+    z-index:960;
     opacity:0;
     pointer-events:none;
     transition:opacity .3s ease;
@@ -515,7 +525,7 @@
     left:0; right:0; bottom:0;
     background:var(--paper);
     border-radius:16px 16px 0 0;
-    z-index:901;
+    z-index:961;
     max-height:88vh;
     overflow-y:auto;
     padding:20px 16px calc(34px + env(safe-area-inset-bottom));
@@ -1304,6 +1314,10 @@
       cell.setAttribute('data-date', dateStr);
       cell.textContent = d;
 
+      var hasUnsettledTrip = dayEntries.some(function(e){ return e.type === 'trip' && e.settlementStatus && e.settlementStatus !== 'done'; });
+      if(hasUnsettledTrip){
+        cell.classList.add('unsettled');
+      }
       if(dayEntries.length === 1){
         var singleBadge = document.createElement('div');
         singleBadge.className = 'daybadge-single';
@@ -1453,6 +1467,7 @@
     if(e.type === 'expense'){
       var p2 = [];
       if(e.name) p2.push(e.name);
+      if(e.merchant) p2.push(e.merchant);
       if(e.category) p2.push(e.category);
       if(e.expenseType) p2.push(e.expenseType);
       if(e.paymentMethod) p2.push(e.paymentMethod);
@@ -2281,11 +2296,20 @@
 
   // ---------- Date picker ----------
   var pickerYear = new Date().getFullYear();
-  function openDatePicker(){
+  var datePickerMode = 'calendar';
+  var statsSpecificYear = new Date().getFullYear();
+  var statsSpecificMonth = new Date().getMonth();
+  function openDatePicker(mode){
+    datePickerMode = mode || 'calendar';
     var now = new Date();
-    var displayDate = new Date(now.getFullYear(), now.getMonth() + calendarOffset, 1);
-    pickerYear = displayDate.getFullYear();
-    renderMonthPicker(displayDate.getMonth());
+    var baseDate;
+    if(datePickerMode === 'stats'){
+      baseDate = new Date(statsSpecificYear, statsSpecificMonth, 1);
+    }else{
+      baseDate = new Date(now.getFullYear(), now.getMonth() + calendarOffset, 1);
+    }
+    pickerYear = baseDate.getFullYear();
+    renderMonthPicker(baseDate.getMonth());
     openSheet('datePickerSheet');
   }
   function renderMonthPicker(activeMonth){
@@ -2298,17 +2322,29 @@
       var isFuture = (pickerYear > now.getFullYear()) || (pickerYear === now.getFullYear() && m > now.getMonth());
       var cls = ['month-cell'];
       if(isFuture) cls.push('future');
-      if(activeMonth === m && pickerYear === (new Date(now.getFullYear(), now.getMonth()+calendarOffset,1)).getFullYear()) cls.push('active');
+      var isActiveYear = (datePickerMode === 'stats')
+        ? (pickerYear === statsSpecificYear)
+        : (pickerYear === (new Date(now.getFullYear(), now.getMonth()+calendarOffset,1)).getFullYear());
+      if(activeMonth === m && isActiveYear) cls.push('active');
       cell.className = cls.join(' ');
       cell.textContent = (m+1)+'월';
       if(!isFuture){
         cell.addEventListener('click', function(mm){
           return function(){
-            calendarOffset = (pickerYear - now.getFullYear())*12 + (mm - now.getMonth());
-            selectedDate = null;
-            renderCalendar();
-            renderDayDetail();
-            closeSheet('datePickerSheet');
+            if(datePickerMode === 'stats'){
+              statsSpecificYear = pickerYear;
+              statsSpecificMonth = mm;
+              statsPeriodMode = 'specificmonth';
+              statsPage = 1;
+              closeSheet('datePickerSheet');
+              renderStatsScreen();
+            }else{
+              calendarOffset = (pickerYear - now.getFullYear())*12 + (mm - now.getMonth());
+              selectedDate = null;
+              renderCalendar();
+              renderDayDetail();
+              closeSheet('datePickerSheet');
+            }
           };
         }(m));
       }
@@ -2317,8 +2353,20 @@
   }
 
   // ---------- Backup ----------
-  function exportBackup(){
-    var data = { entries: entries, expenseCategories: expenseCategories, monthlyBudget: monthlyBudget, exportedAt: new Date().toISOString(), app:'work-journal', version:1 };
+  async function exportBackup(){
+    var passwordHash = await getStoredHash();
+    var data = {
+      entries: entries,
+      expenseCategories: expenseCategories,
+      expenseTypes: expenseTypes,
+      paymentCards: paymentCards,
+      monthlyBudget: monthlyBudget,
+      overtimePresets: overtimePresets,
+      passwordHash: passwordHash,
+      exportedAt: new Date().toISOString(),
+      app:'work-journal',
+      version:2
+    };
     var blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -2353,14 +2401,31 @@
           expenseCategories = data.expenseCategories;
           await saveExpenseCategories();
         }
+        if(data.expenseTypes && Array.isArray(data.expenseTypes)){
+          expenseTypes = data.expenseTypes;
+          await saveExpenseTypes();
+        }
+        if(data.paymentCards && Array.isArray(data.paymentCards)){
+          paymentCards = data.paymentCards;
+          await saveCards();
+        }
         if(data.monthlyBudget != null){
           monthlyBudget = parseFloat(data.monthlyBudget) || 0;
           await saveMonthlyBudget();
         }
+        if(data.overtimePresets && Array.isArray(data.overtimePresets)){
+          overtimePresets = data.overtimePresets;
+          await saveOvertimePresets();
+        }
+        var pwRestored = false;
+        if(data.passwordHash){
+          await setStoredHash(data.passwordHash);
+          pwRestored = true;
+        }
         renderCalendar();
         renderDayDetail();
         t.style.color = 'var(--pine)';
-        t.textContent = added + '개의 기록을 불러왔어요';
+        t.textContent = added + '개의 기록을 불러왔어요' + (pwRestored ? ' (비밀번호도 복원됐어요)' : '');
       }catch(err){
         t.style.color = 'var(--brick)';
         t.textContent = '불러오기 실패: ' + err.message;
@@ -2429,6 +2494,8 @@
     [['all','전체'],['week','이번주'],['lastweek','전주'],['month','이번달'],['quarter','분기'],['half','반기'],['year','연간']].forEach(function(p){
       html += '<button class="chip'+(statsPeriodMode===p[0]?' selected':'')+'" data-val="'+p[0]+'" type="button">'+p[1]+'</button>';
     });
+    var monthPickLabel = (statsPeriodMode === 'specificmonth') ? ('📅 '+statsSpecificYear+'년 '+(statsSpecificMonth+1)+'월') : '📅 월 선택';
+    html += '<button class="chip'+(statsPeriodMode==='specificmonth'?' selected':'')+'" id="statsMonthPickBtn" type="button">'+monthPickLabel+'</button>';
     html += '</div>';
 
     html += '<p class="field-label field-label-strong">🏷️ 유형</p>';
@@ -2564,6 +2631,15 @@
         html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
         html += '</div>';
         html += '<p class="record-sub">'+niceDate(e.date)+' · '+recordSummary(e)+'</p>';
+        if(e.type === 'trip'){
+          html += '<div style="margin-top:8px;">';
+          html += '<select class="stats_settlement_select" data-id="'+e.id+'" style="width:auto;font-size:12.5px;padding:6px 8px;'+(e.settlementStatus!=='done'?'border-color:var(--brick);color:var(--brick);':'')+'">';
+          ['pending','done','none'].forEach(function(s){
+            html += '<option value="'+s+'"'+(e.settlementStatus===s?' selected':'')+'>'+SETTLEMENT_LABEL[s]+'</option>';
+          });
+          html += '</select>';
+          html += '</div>';
+        }
         html += '</div>';
       });
     }
@@ -2590,6 +2666,18 @@
       btn.addEventListener('click', function(){
         statsPage = parseInt(btn.getAttribute('data-goto'),10);
         renderStatsList(filtered);
+      });
+    });
+    wrap.querySelectorAll('.stats_settlement_select').forEach(function(sel){
+      sel.addEventListener('change', async function(){
+        var id = sel.getAttribute('data-id');
+        var entry = entries.find(function(x){ return x.id === id; });
+        if(entry){
+          entry.settlementStatus = sel.value;
+          await saveEntries();
+          renderCalendar();
+          renderStatsList(filtered);
+        }
       });
     });
   }
