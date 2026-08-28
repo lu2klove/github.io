@@ -2470,6 +2470,9 @@
     if(mode === 'year'){
       return { start: dstr(new Date(y,0,1)), end: dstr(new Date(y,11,31)) };
     }
+    if(mode === 'specificmonth'){
+      return { start: dstr(new Date(statsSpecificYear, statsSpecificMonth, 1)), end: dstr(new Date(statsSpecificYear, statsSpecificMonth+1, 0)) };
+    }
     return null;
   }
   function getPageGroupStart(page){
@@ -2583,12 +2586,15 @@
     body.innerHTML = html;
     renderStatsList(filtered);
 
-    document.querySelectorAll('#statsPeriodChips .chip').forEach(function(c){
+    document.querySelectorAll('#statsPeriodChips .chip[data-val]').forEach(function(c){
       c.addEventListener('click', function(){
         statsPeriodMode = c.getAttribute('data-val');
         statsPage = 1;
         renderStatsScreen();
       });
+    });
+    document.getElementById('statsMonthPickBtn').addEventListener('click', function(){
+      openDatePicker('stats');
     });
     document.querySelectorAll('#statsTypeChips .chip').forEach(function(c){
       c.addEventListener('click', function(){
