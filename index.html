@@ -1507,7 +1507,7 @@
     if(dateStr){
       qs += '&date=' + encodeURIComponent(dateStr.replace(/-/g,''));
     }
-    var res = await fetch('/.netlify/functions/opinet-price?' + qs);
+    var res = await fetch('/api/opinet-price?' + qs);
     var rawText = await res.text();
     var data;
     try{
