@@ -26,6 +26,8 @@
     --blue-soft:#DCE7F5;
     --purple:#7B6A9E;
     --purple-soft:#E7E1F0;
+    --teal:#2E8B7C;
+    --teal-soft:#D9EEEA;
     --stamp:#20241D;
     --radius:10px;
   }
@@ -46,6 +48,8 @@
     --blue-soft:#20304A;
     --purple:#B39FD6;
     --purple-soft:#2E2740;
+    --teal:#5FC4B0;
+    --teal-soft:#1E332F;
     --stamp:#EDEBE1;
   }
   body.theme-dark .savebtn,
@@ -316,6 +320,7 @@
   .dot-trip{ background:var(--blue); }
   .dot-expense{ background:var(--olive); }
   .dot-overtime{ background:var(--purple); }
+  .dot-welfare{ background:var(--teal); }
 
   .day-detail{
     max-height:0;
@@ -340,7 +345,8 @@
     font-size:15px;
   }
   .tagbtn-row{
-    display:flex;
+    display:grid;
+    grid-template-columns:1fr 1fr;
     gap:8px;
     margin-bottom:14px;
   }
@@ -363,6 +369,7 @@
   .tagbtn.trip{ border-color:var(--blue); }
   .tagbtn.expense{ border-color:var(--olive); }
   .tagbtn.overtime{ border-color:var(--purple); }
+  .tagbtn.welfare{ border-color:var(--teal); }
 
   .record-item{
     background:var(--paper);
@@ -387,6 +394,7 @@
   .record-badge.trip{ background:var(--blue-soft); color:var(--blue); }
   .record-badge.expense{ background:var(--olive-soft); color:var(--olive); }
   .record-badge.overtime{ background:var(--purple-soft); color:var(--purple); }
+  .record-badge.welfare{ background:var(--teal-soft); color:var(--teal); }
   .record-amt{
     font-family:'IBM Plex Mono',monospace;
     font-weight:700;
@@ -812,6 +820,11 @@
         <p class="statlabel">🌙 야근</p>
         <p class="statamt" id="statOvertimeAmt"></p>
       </button>
+      <button class="stat-block" id="statBlockWelfare" type="button">
+        <p class="statnum" id="statWelfare">0</p>
+        <p class="statlabel">🎁 복지비</p>
+        <p class="statamt" id="statWelfareAmt"></p>
+      </button>
     </div>
 
     <div class="monthnav">
@@ -883,6 +896,14 @@
   <div id="overtimeFormBody"></div>
 </div>
 
+<div class="bottom-sheet" id="welfareSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">🎁 복지비 등록</span>
+    <button class="sheet-close" id="welfareCloseBtn" type="button">✕</button>
+  </div>
+  <div id="welfareFormBody"></div>
+</div>
+
 <!-- 날짜 선택 -->
 <div class="bottom-sheet" id="datePickerSheet">
   <div class="sheet-head">
@@ -913,6 +934,15 @@
     <button class="sheet-close" id="otSettingsCloseBtn" type="button">✕</button>
   </div>
   <div id="otSettingsBody"></div>
+</div>
+
+<!-- 복지비 설정 -->
+<div class="bottom-sheet" id="welfareSettingsSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">🎁 복지비 설정</span>
+    <button class="sheet-close" id="welfareSettingsCloseBtn" type="button">✕</button>
+  </div>
+  <div id="welfareSettingsBody"></div>
 </div>
 
 <!-- 이번달 유형별 내역 -->
@@ -977,6 +1007,11 @@
   <p class="card-title">🌙 야근 설정</p>
   <div class="ios-list" style="margin-bottom:8px;">
     <button class="cancelbtn" id="otSettingsRowBtn" type="button" style="width:100%;text-align:left;">야근명 · 금액 · 시간 관리 ›</button>
+  </div>
+
+  <p class="card-title">🎁 복지비 설정</p>
+  <div class="ios-list" style="margin-bottom:8px;">
+    <button class="cancelbtn" id="welfareSettingsRowBtn" type="button" style="width:100%;text-align:left;">교육비 · 건강검진비 · 여행비 지원금 관리 ›</button>
   </div>
 
   <p class="card-title">💾 백업</p>
@@ -1307,17 +1342,21 @@
     var tripEntries = monthEntries.filter(function(e){ return e.type==='trip'; });
     var expenseEntries = monthEntries.filter(function(e){ return e.type==='expense'; });
     var overtimeEntries = monthEntries.filter(function(e){ return e.type==='overtime'; });
+    var welfareEntries = monthEntries.filter(function(e){ return e.type==='welfare'; });
 
     document.getElementById('statTrip').textContent = tripEntries.length;
     document.getElementById('statExpense').textContent = expenseEntries.length;
     document.getElementById('statOvertime').textContent = overtimeEntries.length;
+    document.getElementById('statWelfare').textContent = welfareEntries.length;
 
     var tripAmt = tripEntries.reduce(function(s,e){ return s + recordAmount(e); }, 0);
     var expenseAmt = expenseEntries.reduce(function(s,e){ return s + recordAmount(e); }, 0);
     var overtimeAmt = overtimeEntries.reduce(function(s,e){ return s + recordAmount(e); }, 0);
+    var welfareAmt = welfareEntries.reduce(function(s,e){ return s + recordAmount(e); }, 0);
 
     document.getElementById('statTripAmt').textContent = tripAmt > 0 ? formatWon(tripAmt)+'원' : '';
     document.getElementById('statOvertimeAmt').textContent = overtimeAmt > 0 ? formatWon(overtimeAmt)+'원' : '';
+    document.getElementById('statWelfareAmt').textContent = welfareAmt > 0 ? formatWon(welfareAmt)+'원' : '';
 
     var expenseAmtEl = document.getElementById('statExpenseAmt');
     if(monthlyBudget > 0){
@@ -1361,7 +1400,9 @@
       cell.setAttribute('data-date', dateStr);
       cell.textContent = d;
 
-      var hasUnsettledTrip = dayEntries.some(function(e){ return e.type === 'trip' && e.settlementStatus && e.settlementStatus !== 'done'; });
+      var hasUnsettledTrip = dayEntries.some(function(e){
+        return (e.type === 'trip' || e.type === 'welfare') && e.settlementStatus && e.settlementStatus !== 'done';
+      });
       if(hasUnsettledTrip){
         cell.classList.add('unsettled');
       }
@@ -1379,6 +1420,7 @@
         if(types.trip){ var dt=document.createElement('span'); dt.className='dot dot-trip'; dotrow.appendChild(dt); }
         if(types.expense){ var de=document.createElement('span'); de.className='dot dot-expense'; dotrow.appendChild(de); }
         if(types.overtime){ var doo=document.createElement('span'); doo.className='dot dot-overtime'; dotrow.appendChild(doo); }
+        if(types.welfare){ var dw=document.createElement('span'); dw.className='dot dot-welfare'; dotrow.appendChild(dw); }
         cell.appendChild(dotrow);
 
         var iconrow = document.createElement('div');
@@ -1386,6 +1428,7 @@
         if(types.trip){ var it=document.createElement('span'); it.textContent=TYPE_META.trip.icon; iconrow.appendChild(it); }
         if(types.expense){ var ie=document.createElement('span'); ie.textContent=TYPE_META.expense.icon; iconrow.appendChild(ie); }
         if(types.overtime){ var io=document.createElement('span'); io.textContent=TYPE_META.overtime.icon; iconrow.appendChild(io); }
+        if(types.welfare){ var iw=document.createElement('span'); iw.textContent=TYPE_META.welfare.icon; iconrow.appendChild(iw); }
         cell.appendChild(iconrow);
       }
       cell.addEventListener('click', function(){
@@ -1403,7 +1446,8 @@
   var TYPE_META = {
     trip: { icon:'✈️', label:'출장' },
     expense: { icon:'💳', label:'경비' },
-    overtime: { icon:'🌙', label:'야근' }
+    overtime: { icon:'🌙', label:'야근' },
+    welfare: { icon:'🎁', label:'복지비' }
   };
 
   function niceDate(dateStr){
@@ -1434,6 +1478,7 @@
     html += '<button class="tagbtn trip" id="addTripBtn" type="button"><span class="tagicon">✈️</span>출장</button>';
     html += '<button class="tagbtn expense" id="addExpenseBtn" type="button"><span class="tagicon">💳</span>경비</button>';
     html += '<button class="tagbtn overtime" id="addOvertimeBtn" type="button"><span class="tagicon">🌙</span>야근</button>';
+    html += '<button class="tagbtn welfare" id="addWelfareBtn" type="button"><span class="tagicon">🎁</span>복지비</button>';
     html += '</div>';
 
     var dayEntries = entriesForDate(selectedDate).slice().sort(function(a,b){
@@ -1471,6 +1516,7 @@
     document.getElementById('addTripBtn').addEventListener('click', function(){ openTripForm(null); });
     document.getElementById('addExpenseBtn').addEventListener('click', function(){ openExpenseForm(null); });
     document.getElementById('addOvertimeBtn').addEventListener('click', function(){ openOvertimeForm(null); });
+    document.getElementById('addWelfareBtn').addEventListener('click', function(){ openWelfareForm(null); });
     inner.querySelectorAll('[data-edit]').forEach(function(btn){
       btn.addEventListener('click', function(){
         var id = btn.getAttribute('data-edit');
@@ -1478,6 +1524,7 @@
         if(!e) return;
         if(e.type === 'trip') openTripForm(e);
         else if(e.type === 'expense') openExpenseForm(e);
+        else if(e.type === 'welfare') openWelfareForm(e);
         else openOvertimeForm(e);
       });
     });
@@ -1509,6 +1556,7 @@
     if(e.type === 'trip') return computeTripTotal(e);
     if(e.type === 'expense') return e.amount || 0;
     if(e.type === 'overtime') return e.cost || 0;
+    if(e.type === 'welfare') return e.amount || 0;
     return 0;
   }
   function recordSummary(e){
@@ -1534,6 +1582,19 @@
       if(e.category) p3.push(e.category);
       if(e.description) p3.push(e.description.slice(0,30));
       return escapeHtml(p3.join(' · ') || '야근 기록');
+    }
+    if(e.type === 'welfare'){
+      var p4 = [];
+      var wm = WELFARE_TYPE_META[e.welfareType];
+      if(wm) p4.push(wm.label);
+      if(e.welfareType === 'tenure'){
+        if(e.tenureYears) p4.push(e.tenureYears+'년');
+        if(e.vacationDays) p4.push('포상휴가 '+e.vacationDays+'일');
+      }else{
+        if(e.itemName) p4.push(e.itemName);
+        if(e.settlementStatus) p4.push(SETTLEMENT_LABEL[e.settlementStatus]);
+      }
+      return escapeHtml(p4.join(' · ') || '복지비 기록');
     }
     return '';
   }
@@ -1650,6 +1711,7 @@
       html += '<button class="chip'+(e.settlementStatus===k?' selected':'')+'" data-val="'+k+'" type="button">'+SETTLEMENT_LABEL[k]+'</button>';
     });
     html += '</div></div>';
+    html += '<div class="field" id="tf_depositField" style="display:'+(e.settlementStatus==='done'?'block':'none')+';"><span class="field-label">입금일</span><input type="date" id="tf_depositDate" value="'+(e.depositDate||'')+'"></div>';
     html += '<div class="field"><span class="field-label">출장상태</span><div class="chiprow" id="tf_tripstatus">';
     ['ongoing','done'].forEach(function(k){
       html += '<button class="chip'+(e.tripStatus===k?' selected':'')+'" data-val="'+k+'" type="button">'+TRIPSTATUS_LABEL[k]+'</button>';
@@ -1768,6 +1830,8 @@
       c.addEventListener('click', function(){
         document.querySelectorAll('#tf_settlement .chip').forEach(function(x){ x.classList.remove('selected'); });
         c.classList.add('selected');
+        var depositField = document.getElementById('tf_depositField');
+        if(depositField) depositField.style.display = (c.getAttribute('data-val') === 'done') ? 'block' : 'none';
       });
     });
     document.querySelectorAll('#tf_tripstatus .chip').forEach(function(c){
@@ -1850,6 +1914,7 @@
       flightCost: document.getElementById('tf_flightcost') ? (parseFloat(document.getElementById('tf_flightcost').value) || 0) : 0,
       excludeFuel: document.getElementById('tf_excludeFuel').checked,
       settlementStatus: document.querySelector('#tf_settlement .chip.selected').getAttribute('data-val'),
+      depositDate: document.getElementById('tf_depositDate') ? document.getElementById('tf_depositDate').value : '',
       tripStatus: document.querySelector('#tf_tripstatus .chip.selected').getAttribute('data-val'),
       purpose: document.getElementById('tf_purpose').value.trim(),
       memo: document.getElementById('tf_memo').value.trim(),
@@ -1893,6 +1958,38 @@
     { id:'d', name:'기타', cost:20000, start:'18:00', end:'20:00' }
   ];
   var overtimePresets = DEFAULT_OT_PRESETS.slice();
+
+  // ---------- Welfare (복지비) ----------
+  var WELFARE_TYPE_META = {
+    education: { label:'교육비', icon:'📚', nameLabel:'교육명', hasLocation:true },
+    checkup:   { label:'건강검진비', icon:'🏥', nameLabel:'병원명', hasLocation:false },
+    travel:    { label:'여행비', icon:'🏖️', nameLabel:'여행지명', hasLocation:false },
+    tenure:    { label:'근속연수비', icon:'🎖️', nameLabel:null, hasLocation:false }
+  };
+  var WELFARE_LIMITS_KEY = 'workjournal:welfarelimits';
+  var WELFARE_LIMITS_LOCAL_KEY = 'work_journal_welfarelimits_v1';
+  var welfareLimits = { education:0, checkup:0, travel:0 };
+
+  async function loadWelfareLimits(){
+    if(hasClaudeStorage()){
+      try{
+        var res = await window.storage.get(WELFARE_LIMITS_KEY, false);
+        if(res && res.value) return Object.assign({education:0,checkup:0,travel:0}, JSON.parse(res.value));
+        return { education:0, checkup:0, travel:0 };
+      }catch(e){ return { education:0, checkup:0, travel:0 }; }
+    }
+    try{
+      var raw = localStorage.getItem(WELFARE_LIMITS_LOCAL_KEY);
+      return raw ? Object.assign({education:0,checkup:0,travel:0}, JSON.parse(raw)) : { education:0, checkup:0, travel:0 };
+    }catch(e){ return { education:0, checkup:0, travel:0 }; }
+  }
+  async function saveWelfareLimits(){
+    if(hasClaudeStorage()){
+      try{ await window.storage.set(WELFARE_LIMITS_KEY, JSON.stringify(welfareLimits), false); }catch(e){}
+      return;
+    }
+    try{ localStorage.setItem(WELFARE_LIMITS_LOCAL_KEY, JSON.stringify(welfareLimits)); }catch(e){}
+  }
 
   function migrateExpenseTypes(list){
     if(!Array.isArray(list)) return getDefaultExpenseTypes();
@@ -2262,6 +2359,29 @@
   }
 
   // ---------- Overtime form ----------
+  function renderWelfareSettingsScreen(){
+    var body = document.getElementById('welfareSettingsBody');
+    var html = '';
+    html += '<p class="card-title no-divider">🎁 유형별 지원한도액</p>';
+    html += '<div class="field"><span class="field-label field-label-strong">📚 교육비 지원한도액(원)</span><input type="number" id="ws_education" value="'+(welfareLimits.education||'')+'"></div>';
+    html += '<div class="field"><span class="field-label field-label-strong">🏥 건강검진비 지원한도액(원)</span><input type="number" id="ws_checkup" value="'+(welfareLimits.checkup||'')+'"></div>';
+    html += '<div class="field"><span class="field-label field-label-strong">🏖️ 여행비 지원한도액(원)</span><input type="number" id="ws_travel" value="'+(welfareLimits.travel||'')+'"></div>';
+    html += '<button class="savebtn" id="ws_saveBtn" type="button" style="width:100%;">저장</button>';
+    html += '<p class="toast" id="ws_toast"></p>';
+    body.innerHTML = html;
+
+    document.getElementById('ws_saveBtn').addEventListener('click', async function(){
+      welfareLimits.education = parseFloat(document.getElementById('ws_education').value) || 0;
+      welfareLimits.checkup = parseFloat(document.getElementById('ws_checkup').value) || 0;
+      welfareLimits.travel = parseFloat(document.getElementById('ws_travel').value) || 0;
+      await saveWelfareLimits();
+      var t = document.getElementById('ws_toast');
+      t.style.color = 'var(--pine)';
+      t.textContent = '저장됐어요';
+      setTimeout(function(){ t.textContent = ''; }, 1500);
+    });
+  }
+
   function renderOvertimeSettingsScreen(){
     var body = document.getElementById('otSettingsBody');
     var html = '';
@@ -2468,6 +2588,132 @@
     refreshAfterSave();
   }
 
+  // ---------- Welfare form ----------
+  var editingWelfareId = null;
+
+  function renderWelfareDynamicFieldsHTML(type, e){
+    var html = '';
+    if(type === 'tenure'){
+      html += '<div class="field"><span class="field-label field-label-strong">🎖️ 근속연수</span><select id="wf_tenureYears">';
+      [10,15,20,25,30].forEach(function(y){
+        html += '<option value="'+y+'"'+(e.tenureYears===y?' selected':'')+'>'+y+'년</option>';
+      });
+      html += '</select></div>';
+      html += '<div class="field"><span class="field-label">포상휴가(일)</span><input type="number" id="wf_vacationDays" value="'+(e.vacationDays!=null?e.vacationDays:0)+'"></div>';
+    }else{
+      var m = WELFARE_TYPE_META[type];
+      html += '<div class="field"><span class="field-label field-label-strong">'+escapeHtml(m.nameLabel)+'</span><input type="text" id="wf_itemName" value="'+escapeHtml(e.itemName||'')+'"></div>';
+      if(m.hasLocation){
+        html += '<div class="field"><span class="field-label">교육장소</span><input type="text" id="wf_location" value="'+escapeHtml(e.location||'')+'"></div>';
+      }
+      html += '<div class="field"><span class="field-label field-label-strong">💰 금액(원)</span><input type="number" id="wf_amount" value="'+(e.amount!=null?e.amount:'')+'"></div>';
+      var limit = welfareLimits[type] || 0;
+      html += '<p class="savehint">'+m.label+' 지원한도액: '+formatWon(limit)+'원 (설정에서 변경 가능)</p>';
+      html += '<div class="field"><span class="field-label">정산현황</span><div class="chiprow" id="wf_settlement">';
+      ['pending','done','none'].forEach(function(k){
+        html += '<button class="chip'+(e.settlementStatus===k?' selected':'')+'" data-val="'+k+'" type="button">'+SETTLEMENT_LABEL[k]+'</button>';
+      });
+      html += '</div></div>';
+      html += '<div class="field" id="wf_depositField" style="display:'+(e.settlementStatus==='done'?'block':'none')+';"><span class="field-label">입금일</span><input type="date" id="wf_depositDate" value="'+(e.depositDate||'')+'"></div>';
+    }
+    return html;
+  }
+  function wireWelfareDynamicFields(type){
+    if(type === 'tenure') return;
+    document.querySelectorAll('#wf_settlement .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        document.querySelectorAll('#wf_settlement .chip').forEach(function(x){ x.classList.remove('selected'); });
+        c.classList.add('selected');
+        var depositField = document.getElementById('wf_depositField');
+        if(depositField) depositField.style.display = (c.getAttribute('data-val') === 'done') ? 'block' : 'none';
+      });
+    });
+  }
+  function openWelfareForm(existing){
+    editingWelfareId = existing ? existing.id : null;
+    var e = existing || { welfareType:'education', settlementStatus:'pending' };
+    var body = document.getElementById('welfareFormBody');
+
+    var html = '';
+    html += '<div class="field"><span class="field-label field-label-strong">📅 날짜</span><input type="date" id="wf_date" value="'+(e.date||selectedDate)+'"></div>';
+    html += '<div class="field"><span class="field-label field-label-strong">🎁 복지 유형</span><div class="chiprow" id="wf_type">';
+    ['education','checkup','travel','tenure'].forEach(function(k){
+      var m = WELFARE_TYPE_META[k];
+      html += '<button class="chip'+(e.welfareType===k?' selected':'')+'" data-val="'+k+'" type="button">'+m.icon+' '+m.label+'</button>';
+    });
+    html += '</div></div>';
+    html += '<div id="wf_dynamicFields">'+renderWelfareDynamicFieldsHTML(e.welfareType, e)+'</div>';
+    html += '<div class="field"><span class="field-label">비고</span><textarea id="wf_memo" placeholder="추가로 남길 내용">'+escapeHtml(e.memo||'')+'</textarea></div>';
+    html += '<div class="row2">';
+    html += '<button class="cancelbtn" id="wf_cancelBtn" type="button">취소</button>';
+    html += '<button class="savebtn" id="wf_saveBtn" type="button">'+(existing?'수정 저장':'복지비 기록 저장')+'</button>';
+    html += '</div>';
+    if(existing){
+      html += '<button class="danger" id="wf_deleteBtn" type="button" style="width:100%;margin-top:10px;">이 기록 삭제</button>';
+    }
+
+    body.innerHTML = html;
+    wireWelfareDynamicFields(e.welfareType);
+
+    document.querySelectorAll('#wf_type .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        document.querySelectorAll('#wf_type .chip').forEach(function(x){ x.classList.remove('selected'); });
+        c.classList.add('selected');
+        var newType = c.getAttribute('data-val');
+        document.getElementById('wf_dynamicFields').innerHTML = renderWelfareDynamicFieldsHTML(newType, {});
+        wireWelfareDynamicFields(newType);
+      });
+    });
+    document.getElementById('wf_cancelBtn').addEventListener('click', function(){ closeSheet('welfareSheet'); });
+    document.getElementById('wf_saveBtn').addEventListener('click', saveWelfareForm);
+    var delBtn = document.getElementById('wf_deleteBtn');
+    if(delBtn){
+      delBtn.addEventListener('click', async function(){
+        entries = entries.filter(function(x){ return x.id !== editingWelfareId; });
+        await saveEntries();
+        closeSheet('welfareSheet');
+        refreshAfterSave();
+      });
+    }
+    openSheet('welfareSheet');
+  }
+  async function saveWelfareForm(){
+    var now = new Date().toISOString();
+    var typeEl = document.querySelector('#wf_type .chip.selected');
+    var welfareType = typeEl ? typeEl.getAttribute('data-val') : 'education';
+    var payload = {
+      id: editingWelfareId || uid(),
+      type: 'welfare',
+      date: document.getElementById('wf_date').value || selectedDate,
+      welfareType: welfareType,
+      memo: document.getElementById('wf_memo').value.trim(),
+      createdAt: editingWelfareId ? (entries.find(function(x){return x.id===editingWelfareId;})||{}).createdAt || now : now,
+      updatedAt: now
+    };
+    if(welfareType === 'tenure'){
+      payload.tenureYears = parseInt(document.getElementById('wf_tenureYears').value, 10);
+      payload.vacationDays = parseFloat(document.getElementById('wf_vacationDays').value) || 0;
+    }else{
+      payload.itemName = document.getElementById('wf_itemName').value.trim();
+      if(document.getElementById('wf_location')){
+        payload.location = document.getElementById('wf_location').value.trim();
+      }
+      payload.amount = parseFloat(document.getElementById('wf_amount').value) || 0;
+      var settlementEl = document.querySelector('#wf_settlement .chip.selected');
+      payload.settlementStatus = settlementEl ? settlementEl.getAttribute('data-val') : 'pending';
+      payload.depositDate = document.getElementById('wf_depositDate') ? document.getElementById('wf_depositDate').value : '';
+    }
+    if(editingWelfareId){
+      var idx = entries.findIndex(function(x){ return x.id === editingWelfareId; });
+      if(idx >= 0) entries[idx] = payload; else entries.push(payload);
+    }else{
+      entries.push(payload);
+    }
+    await saveEntries();
+    closeSheet('welfareSheet');
+    refreshAfterSave();
+  }
+
   // ---------- Date picker ----------
   var pickerYear = new Date().getFullYear();
   var datePickerMode = 'calendar';
@@ -2555,6 +2801,7 @@
       paymentCards: paymentCards,
       monthlyBudget: monthlyBudget,
       overtimePresets: overtimePresets,
+      welfareLimits: welfareLimits,
       passwordHash: passwordHash,
       exportedAt: new Date().toISOString(),
       app:'work-journal',
@@ -2610,6 +2857,10 @@
           overtimePresets = data.overtimePresets;
           await saveOvertimePresets();
         }
+        if(data.welfareLimits && typeof data.welfareLimits === 'object'){
+          welfareLimits = Object.assign({education:0,checkup:0,travel:0}, data.welfareLimits);
+          await saveWelfareLimits();
+        }
         var pwRestored = false;
         if(data.passwordHash){
           await setStoredHash(data.passwordHash);
@@ -2632,6 +2883,7 @@
   var statsTypeMode = 'all';
   var statsPage = 1;
   var statsExpenseTypeFilter = '';
+  var statsWelfareTypeFilter = '';
   var statsConfirmDeleteId = null;
   var STATS_PAGE_SIZE = 7;
 
@@ -2704,6 +2956,7 @@
     return entries.filter(function(e){
       if(statsTypeMode !== 'all' && e.type !== statsTypeMode) return false;
       if(statsTypeMode === 'expense' && statsExpenseTypeFilter && e.expenseType !== statsExpenseTypeFilter) return false;
+      if(statsTypeMode === 'welfare' && statsWelfareTypeFilter && e.welfareType !== statsWelfareTypeFilter) return false;
       if(range && (e.date < range.start || e.date > range.end)) return false;
       return true;
     });
@@ -2726,7 +2979,7 @@
 
     html += '<p class="field-label field-label-strong">🏷️ 유형</p>';
     html += '<div class="chiprow" id="statsTypeChips" style="margin-bottom:20px;">';
-    [['all','전체'],['trip','✈️ 출장'],['expense','💳 경비'],['overtime','🌙 야근']].forEach(function(t){
+    [['all','전체'],['trip','✈️ 출장'],['expense','💳 경비'],['overtime','🌙 야근'],['welfare','🎁 복지비']].forEach(function(t){
       html += '<button class="chip'+(statsTypeMode===t[0]?' selected':'')+'" data-val="'+t[0]+'" type="button">'+t[1]+'</button>';
     });
     html += '</div>';
@@ -2736,15 +2989,15 @@
       if(range && (e.date < range.start || e.date > range.end)) return false;
       return true;
     });
-    var breakdown = { trip:{count:0,amount:0}, expense:{count:0,amount:0}, overtime:{count:0,amount:0} };
+    var breakdown = { trip:{count:0,amount:0}, expense:{count:0,amount:0}, overtime:{count:0,amount:0}, welfare:{count:0,amount:0} };
     periodEntries.forEach(function(e){
       breakdown[e.type].count++;
       breakdown[e.type].amount += recordAmount(e);
     });
-    var maxAmt = Math.max(breakdown.trip.amount, breakdown.expense.amount, breakdown.overtime.amount, 1);
+    var maxAmt = Math.max(breakdown.trip.amount, breakdown.expense.amount, breakdown.overtime.amount, breakdown.welfare.amount, 1);
 
     html += '<p class="card-title no-divider">유형별 합계</p>';
-    [['trip','✈️ 출장','var(--blue)'],['expense','💳 경비','var(--olive)'],['overtime','🌙 야근','var(--purple)']].forEach(function(t){
+    [['trip','✈️ 출장','var(--blue)'],['expense','💳 경비','var(--olive)'],['overtime','🌙 야근','var(--purple)'],['welfare','🎁 복지비','var(--teal)']].forEach(function(t){
       var b = breakdown[t[0]];
       var pct = Math.round((b.amount / maxAmt) * 100);
       html += '<div class="stat-bar-row">';
@@ -2808,6 +3061,54 @@
       }
     }
 
+    if(statsTypeMode === 'welfare'){
+      var welfarePeriodEntries = periodEntries.filter(function(e){ return e.type === 'welfare'; });
+      var wfBreakdown = {};
+      Object.keys(WELFARE_TYPE_META).forEach(function(k){ wfBreakdown[k] = {count:0, amount:0}; });
+      welfarePeriodEntries.forEach(function(e){
+        var key = e.welfareType && wfBreakdown[e.welfareType] ? e.welfareType : null;
+        if(key){
+          wfBreakdown[key].count++;
+          wfBreakdown[key].amount += recordAmount(e);
+        }
+      });
+      var maxWfAmt;
+      if(statsWelfareTypeFilter){
+        maxWfAmt = Math.max(wfBreakdown[statsWelfareTypeFilter] ? wfBreakdown[statsWelfareTypeFilter].amount : 0, 1);
+      }else{
+        maxWfAmt = Math.max.apply(null, Object.keys(WELFARE_TYPE_META).map(function(k){ return wfBreakdown[k].amount; }).concat([1]));
+      }
+
+      html += '<p class="field-label field-label-strong" style="margin-top:20px;">🎁 복지비 유형별 보기</p>';
+      html += '<div class="chiprow" id="statsWelfareTypeChips" style="margin-bottom:16px;">';
+      html += '<button class="chip'+(statsWelfareTypeFilter===''?' selected':'')+'" data-val="" type="button">전체</button>';
+      Object.keys(WELFARE_TYPE_META).forEach(function(k){
+        var m = WELFARE_TYPE_META[k];
+        html += '<button class="chip'+(statsWelfareTypeFilter===k?' selected':'')+'" data-val="'+k+'" type="button">'+m.icon+' '+m.label+'</button>';
+      });
+      html += '</div>';
+
+      Object.keys(WELFARE_TYPE_META).forEach(function(k){
+        if(statsWelfareTypeFilter && statsWelfareTypeFilter !== k) return;
+        var b = wfBreakdown[k];
+        if(b.count === 0) return;
+        var m = WELFARE_TYPE_META[k];
+        var pct = Math.round((b.amount / maxWfAmt) * 100);
+        html += '<div class="stat-bar-row">';
+        html += '<div class="stat-bar-label"><span>'+m.icon+' '+m.label+' · '+b.count+'건</span><span style="font-family:\'IBM Plex Mono\',monospace;font-weight:700;">'+formatWon(b.amount)+'원</span></div>';
+        html += '<div class="stat-bar-track"><div class="stat-bar-fill" style="width:'+pct+'%;background:var(--teal);"></div></div>';
+        if(k !== 'tenure' && welfareLimits[k] > 0){
+          var budgetApplicablePeriod2 = (statsPeriodMode === 'week' || statsPeriodMode === 'lastweek' || statsPeriodMode === 'month');
+          if(budgetApplicablePeriod2){
+            html += renderBudgetStatusHTML(b.amount, welfareLimits[k]);
+          }else{
+            html += '<p style="font-size:11px;color:var(--ink-faint);margin:5px 0 0;">지원한도 비교는 이번주·전주·이번달 기간에서만 표시돼요</p>';
+          }
+        }
+        html += '</div>';
+      });
+    }
+
     var filtered = statsFilteredEntries();
     html += '<p class="card-title">목록 ('+filtered.length+'건)</p>';
     html += '<div id="statsListWrap"></div>';
@@ -2832,6 +3133,7 @@
       c.addEventListener('click', function(){
         statsTypeMode = c.getAttribute('data-val');
         statsExpenseTypeFilter = '';
+        statsWelfareTypeFilter = '';
         statsPage = 1;
         renderStatsScreen();
       });
@@ -2841,6 +3143,16 @@
       expTypeChipsEl.querySelectorAll('.chip').forEach(function(c){
         c.addEventListener('click', function(){
           statsExpenseTypeFilter = c.getAttribute('data-val');
+          statsPage = 1;
+          renderStatsScreen();
+        });
+      });
+    }
+    var wfTypeChipsEl = document.getElementById('statsWelfareTypeChips');
+    if(wfTypeChipsEl){
+      wfTypeChipsEl.querySelectorAll('.chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          statsWelfareTypeFilter = c.getAttribute('data-val');
           statsPage = 1;
           renderStatsScreen();
         });
@@ -2895,6 +3207,7 @@
         if(!entry) return;
         if(entry.type === 'trip') openTripForm(entry);
         else if(entry.type === 'expense') openExpenseForm(entry);
+        else if(entry.type === 'welfare') openWelfareForm(entry);
         else openOvertimeForm(entry);
       });
     });
@@ -3010,6 +3323,7 @@
         if(!entry) return;
         if(entry.type === 'trip') openTripForm(entry);
         else if(entry.type === 'expense') openExpenseForm(entry);
+        else if(entry.type === 'welfare') openWelfareForm(entry);
         else openOvertimeForm(entry);
       });
     });
@@ -3062,6 +3376,13 @@
     document.getElementById('otSettingsCloseBtn').addEventListener('click', function(){
       openSheet('settingsSheet');
     });
+    document.getElementById('welfareSettingsRowBtn').addEventListener('click', function(){
+      renderWelfareSettingsScreen();
+      openSheet('welfareSettingsSheet');
+    });
+    document.getElementById('welfareSettingsCloseBtn').addEventListener('click', function(){
+      openSheet('settingsSheet');
+    });
 
     document.getElementById('monthLabelBtn').addEventListener('click', openDatePicker);
     document.getElementById('prevMonthBtn').addEventListener('click', function(){
@@ -3095,6 +3416,10 @@
       renderMonthTypeSheet('overtime');
       openSheet('monthTypeSheet');
     });
+    document.getElementById('statBlockWelfare').addEventListener('click', function(){
+      renderMonthTypeSheet('welfare');
+      openSheet('monthTypeSheet');
+    });
     document.getElementById('monthTypeCloseBtn').addEventListener('click', function(){
       closeSheet('monthTypeSheet');
       currentMonthTypeSheetType = null;
@@ -3104,6 +3429,7 @@
       statsPeriodMode = 'all';
       statsTypeMode = 'all';
       statsExpenseTypeFilter = '';
+      statsWelfareTypeFilter = '';
       statsPage = 1;
       renderStatsScreen();
       document.getElementById('statsScreen').classList.add('open');
@@ -3185,6 +3511,7 @@
       expenseTypes = await loadExpenseTypes();
       paymentCards = await loadCards();
       overtimePresets = await loadOvertimePresets();
+      welfareLimits = await loadWelfareLimits();
       monthlyBudget = await loadMonthlyBudget();
       renderCalendar();
       renderDayDetail();
