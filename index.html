@@ -269,6 +269,20 @@
     justify-content:center;
     gap:2px;
   }
+  .iconrow-desktop{
+    position:absolute;
+    bottom:1px;
+    left:0; right:0;
+    display:none;
+    justify-content:center;
+    gap:1px;
+    font-size:9px;
+    line-height:1;
+  }
+  @media (min-width:768px){
+    .dotrow-mobile{ display:none; }
+    .iconrow-desktop{ display:flex; }
+  }
   .daybadge-single{
     position:absolute;
     bottom:1px;
@@ -277,14 +291,12 @@
     line-height:1;
   }
   .cell.unsettled::before{
-    content:'';
+    content:'💡';
     position:absolute;
-    top:2px;
-    left:2px;
-    width:6px;
-    height:6px;
-    border-radius:50%;
-    background:var(--brick);
+    top:-2px;
+    left:-1px;
+    font-size:9px;
+    line-height:1;
   }
   .cell .dot{
     width:5px; height:5px;
@@ -1334,14 +1346,22 @@
         singleBadge.textContent = TYPE_META[dayEntries[0].type].icon;
         cell.appendChild(singleBadge);
       }else if(dayEntries.length > 1){
-        var dotrow = document.createElement('div');
-        dotrow.className = 'dotrow';
         var types = {};
         dayEntries.forEach(function(e){ types[e.type] = true; });
+
+        var dotrow = document.createElement('div');
+        dotrow.className = 'dotrow dotrow-mobile';
         if(types.trip){ var dt=document.createElement('span'); dt.className='dot dot-trip'; dotrow.appendChild(dt); }
         if(types.expense){ var de=document.createElement('span'); de.className='dot dot-expense'; dotrow.appendChild(de); }
         if(types.overtime){ var doo=document.createElement('span'); doo.className='dot dot-overtime'; dotrow.appendChild(doo); }
         cell.appendChild(dotrow);
+
+        var iconrow = document.createElement('div');
+        iconrow.className = 'iconrow-desktop';
+        if(types.trip){ var it=document.createElement('span'); it.textContent=TYPE_META.trip.icon; iconrow.appendChild(it); }
+        if(types.expense){ var ie=document.createElement('span'); ie.textContent=TYPE_META.expense.icon; iconrow.appendChild(ie); }
+        if(types.overtime){ var io=document.createElement('span'); io.textContent=TYPE_META.overtime.icon; iconrow.appendChild(io); }
+        cell.appendChild(iconrow);
       }
       cell.addEventListener('click', function(){
         var ds = this.getAttribute('data-date');
@@ -1775,8 +1795,7 @@
         entries = entries.filter(function(x){ return x.id !== editingTripId; });
         await saveEntries();
         closeSheet('tripSheet');
-        renderCalendar();
-        renderDayDetail();
+        refreshAfterSave();
       });
     }
   }
@@ -1820,8 +1839,7 @@
     }
     await saveEntries();
     closeSheet('tripSheet');
-    renderCalendar();
-    renderDayDetail();
+    refreshAfterSave();
   }
 
   // ---------- Expense form ----------
@@ -1832,8 +1850,10 @@
 
   var EXPENSE_TYPE_KEY = 'workjournal:expensetypes';
   var EXPENSE_TYPE_LOCAL_KEY = 'work_journal_expensetypes_v1';
-  var DEFAULT_EXPENSE_TYPES = ['요식비','교통비','숙박비','출장경비','기타'];
-  var expenseTypes = DEFAULT_EXPENSE_TYPES.slice();
+  function getDefaultExpenseTypes(){
+    return ['요식비','교통비','숙박비','출장경비','기타'].map(function(n){ return { name:n, budget:0 }; });
+  }
+  var expenseTypes = getDefaultExpenseTypes();
 
   var CARDS_KEY = 'workjournal:cards';
   var CARDS_LOCAL_KEY = 'work_journal_cards_v1';
@@ -1849,18 +1869,26 @@
   ];
   var overtimePresets = DEFAULT_OT_PRESETS.slice();
 
+  function migrateExpenseTypes(list){
+    if(!Array.isArray(list)) return getDefaultExpenseTypes();
+    return list.map(function(item){
+      if(typeof item === 'string') return { name:item, budget:0 };
+      return { name:item.name || '', budget:item.budget || 0 };
+    });
+  }
+
   async function loadExpenseTypes(){
     if(hasClaudeStorage()){
       try{
         var res = await window.storage.get(EXPENSE_TYPE_KEY, false);
-        if(res && res.value) return JSON.parse(res.value);
-        return DEFAULT_EXPENSE_TYPES.slice();
-      }catch(e){ return DEFAULT_EXPENSE_TYPES.slice(); }
+        if(res && res.value) return migrateExpenseTypes(JSON.parse(res.value));
+        return getDefaultExpenseTypes();
+      }catch(e){ return getDefaultExpenseTypes(); }
     }
     try{
       var raw = localStorage.getItem(EXPENSE_TYPE_LOCAL_KEY);
-      return raw ? JSON.parse(raw) : DEFAULT_EXPENSE_TYPES.slice();
-    }catch(e){ return DEFAULT_EXPENSE_TYPES.slice(); }
+      return raw ? migrateExpenseTypes(JSON.parse(raw)) : getDefaultExpenseTypes();
+    }catch(e){ return getDefaultExpenseTypes(); }
   }
   async function saveExpenseTypes(){
     if(hasClaudeStorage()){
@@ -2022,7 +2050,7 @@
     html += '<p class="toast" id="es_budgetToast"></p>';
 
     html += renderEditableListHTML('🏷️ 카테고리 관리', expenseCategories, 'es_cat', '새 카테고리 이름', true);
-    html += renderEditableListHTML('📁 유형 관리', expenseTypes, 'es_type', '새 유형 이름', true);
+    html += renderTypeListWithBudgetHTML();
     html += renderEditableListHTML('💳 카드 관리', paymentCards, 'es_card', '예: 삼성카드(법인)', false);
 
     body.innerHTML = html;
@@ -2038,8 +2066,70 @@
     });
 
     wireEditableList('es_cat', expenseCategories, saveExpenseCategories, DEFAULT_EXPENSE_CATEGORIES, renderExpenseSettingsScreen);
-    wireEditableList('es_type', expenseTypes, saveExpenseTypes, DEFAULT_EXPENSE_TYPES, renderExpenseSettingsScreen);
+    wireTypeListWithBudget();
     wireEditableList('es_card', paymentCards, saveCards, null, renderExpenseSettingsScreen);
+  }
+
+  function renderTypeListWithBudgetHTML(){
+    var html = '';
+    html += '<p class="card-title">📁 유형 관리 (유형별 예산)</p>';
+    if(expenseTypes.length === 0){
+      html += '<p class="empty-inline">등록된 유형이 없어요.</p>';
+    }
+    expenseTypes.forEach(function(t, i){
+      html += '<div class="row2" style="grid-template-columns:1.2fr 1fr auto;margin-bottom:8px;">';
+      html += '<input type="text" class="es_typename_input" data-idx="'+i+'" value="'+escapeHtml(t.name)+'" placeholder="유형 이름">';
+      html += '<input type="number" class="es_typebudget_input" data-idx="'+i+'" value="'+(t.budget||'')+'" placeholder="예산(원)">';
+      html += '<button class="danger es_type_del" data-idx="'+i+'" type="button">삭제</button>';
+      html += '</div>';
+    });
+    html += '<div class="row2" style="grid-template-columns:1.2fr 1fr auto;margin-bottom:12px;">';
+    html += '<input type="text" id="es_type_newname" placeholder="새 유형 이름">';
+    html += '<input type="number" id="es_type_newbudget" placeholder="예산(원)">';
+    html += '<button class="cancelbtn" id="es_type_add" type="button">추가</button>';
+    html += '</div>';
+    html += '<button class="cancelbtn" id="es_type_reset" type="button" style="width:100%;margin-bottom:8px;">기본값으로 초기화</button>';
+    return html;
+  }
+  function wireTypeListWithBudget(){
+    document.querySelectorAll('.es_typename_input').forEach(function(inp){
+      inp.addEventListener('change', async function(){
+        var idx = parseInt(inp.getAttribute('data-idx'), 10);
+        if(inp.value.trim()){
+          expenseTypes[idx].name = inp.value.trim();
+          await saveExpenseTypes();
+        }
+      });
+    });
+    document.querySelectorAll('.es_typebudget_input').forEach(function(inp){
+      inp.addEventListener('change', async function(){
+        var idx = parseInt(inp.getAttribute('data-idx'), 10);
+        expenseTypes[idx].budget = parseFloat(inp.value) || 0;
+        await saveExpenseTypes();
+      });
+    });
+    document.querySelectorAll('.es_type_del').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        var idx = parseInt(btn.getAttribute('data-idx'), 10);
+        expenseTypes.splice(idx, 1);
+        await saveExpenseTypes();
+        renderExpenseSettingsScreen();
+      });
+    });
+    document.getElementById('es_type_add').addEventListener('click', async function(){
+      var nameInp = document.getElementById('es_type_newname');
+      var budgetInp = document.getElementById('es_type_newbudget');
+      var name = nameInp.value.trim();
+      if(!name) return;
+      expenseTypes.push({ name:name, budget: parseFloat(budgetInp.value) || 0 });
+      await saveExpenseTypes();
+      renderExpenseSettingsScreen();
+    });
+    document.getElementById('es_type_reset').addEventListener('click', async function(){
+      expenseTypes = getDefaultExpenseTypes();
+      await saveExpenseTypes();
+      renderExpenseSettingsScreen();
+    });
   }
 
   function openExpenseForm(existing){
@@ -2061,7 +2151,7 @@
 
     html += '<div class="field"><span class="field-label">유형</span><div class="chiprow" id="ef_type">';
     expenseTypes.forEach(function(t){
-      html += '<button class="chip'+(e.expenseType===t?' selected':'')+'" data-val="'+t+'" type="button">'+t+'</button>';
+      html += '<button class="chip'+(e.expenseType===t.name?' selected':'')+'" data-val="'+escapeHtml(t.name)+'" type="button">'+escapeHtml(t.name)+'</button>';
     });
     html += '</div></div>';
 
@@ -2110,8 +2200,7 @@
         entries = entries.filter(function(x){ return x.id !== editingExpenseId; });
         await saveEntries();
         closeSheet('expenseSheet');
-        renderCalendar();
-        renderDayDetail();
+        refreshAfterSave();
       });
     }
     openSheet('expenseSheet');
@@ -2144,8 +2233,7 @@
     }
     await saveEntries();
     closeSheet('expenseSheet');
-    renderCalendar();
-    renderDayDetail();
+    refreshAfterSave();
   }
 
   // ---------- Overtime form ----------
@@ -2322,8 +2410,7 @@
         entries = entries.filter(function(x){ return x.id !== editingOvertimeId; });
         await saveEntries();
         closeSheet('overtimeSheet');
-        renderCalendar();
-        renderDayDetail();
+        refreshAfterSave();
       });
     }
     openSheet('overtimeSheet');
@@ -2353,8 +2440,7 @@
     }
     await saveEntries();
     closeSheet('overtimeSheet');
-    renderCalendar();
-    renderDayDetail();
+    refreshAfterSave();
   }
 
   // ---------- Date picker ----------
@@ -2465,7 +2551,7 @@
           await saveExpenseCategories();
         }
         if(data.expenseTypes && Array.isArray(data.expenseTypes)){
-          expenseTypes = data.expenseTypes;
+          expenseTypes = migrateExpenseTypes(data.expenseTypes);
           await saveExpenseTypes();
         }
         if(data.paymentCards && Array.isArray(data.paymentCards)){
@@ -2502,6 +2588,7 @@
   var statsTypeMode = 'all';
   var statsPage = 1;
   var statsExpenseTypeFilter = '';
+  var statsConfirmDeleteId = null;
   var STATS_PAGE_SIZE = 7;
 
   function pad2(n){ return String(n).padStart(2,'0'); }
@@ -2540,6 +2627,26 @@
   }
   function getPageGroupStart(page){
     return Math.floor((page-1)/5)*5 + 1;
+  }
+  function renderBudgetStatusHTML(spent, budget){
+    var remain = budget - spent;
+    var html = '<p style="font-size:12px;margin:5px 0 0;font-weight:600;';
+    if(remain < 0){
+      html += 'color:var(--brick);">⚠️ 경고! 마이너스 (예산보다 '+formatWon(Math.abs(remain))+'원 초과 · 예산 '+formatWon(budget)+'원)</p>';
+    }else if(remain === 0){
+      html += 'color:var(--ink-soft);">🚫 그만 사용 (예산 '+formatWon(budget)+'원 전부 사용)</p>';
+    }else{
+      html += 'color:var(--pine);">👌 더 쓰셔도 됩니다 (남은 예산 '+formatWon(remain)+'원 · 총 예산 '+formatWon(budget)+'원)</p>';
+    }
+    return html;
+  }
+  function refreshAfterSave(){
+    renderCalendar();
+    renderDayDetail();
+    var statsEl = document.getElementById('statsScreen');
+    if(statsEl && statsEl.classList.contains('open')){
+      renderStatsScreen();
+    }
   }
   function statsFilteredEntries(){
     var range = getPeriodRange(statsPeriodMode);
@@ -2596,7 +2703,7 @@
     if(statsTypeMode === 'expense'){
       var expensePeriodEntries = periodEntries.filter(function(e){ return e.type === 'expense'; });
       var typeBreakdown = {};
-      expenseTypes.forEach(function(t){ typeBreakdown[t] = {count:0, amount:0}; });
+      expenseTypes.forEach(function(t){ typeBreakdown[t.name] = {count:0, amount:0}; });
       var untyped = {count:0, amount:0};
       expensePeriodEntries.forEach(function(e){
         var key = e.expenseType && typeBreakdown[e.expenseType] ? e.expenseType : null;
@@ -2612,25 +2719,28 @@
       if(statsExpenseTypeFilter){
         maxTypeAmt = Math.max(typeBreakdown[statsExpenseTypeFilter] ? typeBreakdown[statsExpenseTypeFilter].amount : 0, 1);
       }else{
-        maxTypeAmt = Math.max.apply(null, expenseTypes.map(function(t){ return typeBreakdown[t].amount; }).concat([untyped.amount, 1]));
+        maxTypeAmt = Math.max.apply(null, expenseTypes.map(function(t){ return typeBreakdown[t.name].amount; }).concat([untyped.amount, 1]));
       }
 
       html += '<p class="field-label field-label-strong" style="margin-top:20px;">📁 경비 유형별 보기</p>';
       html += '<div class="chiprow" id="statsExpenseTypeChips" style="margin-bottom:16px;">';
       html += '<button class="chip'+(statsExpenseTypeFilter===''?' selected':'')+'" data-val="" type="button">전체</button>';
       expenseTypes.forEach(function(t){
-        html += '<button class="chip'+(statsExpenseTypeFilter===t?' selected':'')+'" data-val="'+t+'" type="button">'+t+'</button>';
+        html += '<button class="chip'+(statsExpenseTypeFilter===t.name?' selected':'')+'" data-val="'+escapeHtml(t.name)+'" type="button">'+escapeHtml(t.name)+'</button>';
       });
       html += '</div>';
 
       expenseTypes.forEach(function(t){
-        if(statsExpenseTypeFilter && statsExpenseTypeFilter !== t) return;
-        var b = typeBreakdown[t];
+        if(statsExpenseTypeFilter && statsExpenseTypeFilter !== t.name) return;
+        var b = typeBreakdown[t.name];
         if(b.count === 0) return;
         var pct = Math.round((b.amount / maxTypeAmt) * 100);
         html += '<div class="stat-bar-row">';
-        html += '<div class="stat-bar-label"><span>'+t+' · '+b.count+'건</span><span style="font-family:\'IBM Plex Mono\',monospace;font-weight:700;">'+formatWon(b.amount)+'원</span></div>';
+        html += '<div class="stat-bar-label"><span>'+escapeHtml(t.name)+' · '+b.count+'건</span><span style="font-family:\'IBM Plex Mono\',monospace;font-weight:700;">'+formatWon(b.amount)+'원</span></div>';
         html += '<div class="stat-bar-track"><div class="stat-bar-fill" style="width:'+pct+'%;background:var(--olive);"></div></div>';
+        if(t.budget > 0){
+          html += renderBudgetStatusHTML(b.amount, t.budget);
+        }
         html += '</div>';
       });
       if(untyped.count > 0 && !statsExpenseTypeFilter){
@@ -2709,6 +2819,17 @@
           html += '</select>';
           html += '</div>';
         }
+        var isConfirmingStats = statsConfirmDeleteId === e.id;
+        html += '<div class="record-actions" style="margin-top:8px;">';
+        if(isConfirmingStats){
+          html += '<span style="font-size:12.5px;color:var(--brick);">정말 삭제할까요?</span>';
+          html += '<button class="danger" data-stats-confirmdel="'+e.id+'" type="button">삭제</button>';
+          html += '<button class="cancelbtn" data-stats-canceldel="'+e.id+'" type="button" style="padding:6px 12px;font-size:12.5px;">취소</button>';
+        }else{
+          html += '<button class="cancelbtn" data-stats-edit="'+e.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">수정</button>';
+          html += '<button class="danger" data-stats-askdel="'+e.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">삭제</button>';
+        }
+        html += '</div>';
         html += '</div>';
       });
     }
@@ -2747,6 +2868,38 @@
           renderCalendar();
           renderStatsList(filtered);
         }
+      });
+    });
+    wrap.querySelectorAll('[data-stats-edit]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = btn.getAttribute('data-stats-edit');
+        var entry = entries.find(function(x){ return x.id === id; });
+        if(!entry) return;
+        if(entry.type === 'trip') openTripForm(entry);
+        else if(entry.type === 'expense') openExpenseForm(entry);
+        else openOvertimeForm(entry);
+      });
+    });
+    wrap.querySelectorAll('[data-stats-askdel]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        statsConfirmDeleteId = btn.getAttribute('data-stats-askdel');
+        renderStatsList(filtered);
+      });
+    });
+    wrap.querySelectorAll('[data-stats-canceldel]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        statsConfirmDeleteId = null;
+        renderStatsList(filtered);
+      });
+    });
+    wrap.querySelectorAll('[data-stats-confirmdel]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        var id = btn.getAttribute('data-stats-confirmdel');
+        entries = entries.filter(function(x){ return x.id !== id; });
+        await saveEntries();
+        statsConfirmDeleteId = null;
+        renderCalendar();
+        renderStatsScreen();
       });
     });
   }
