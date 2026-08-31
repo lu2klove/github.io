@@ -2477,7 +2477,7 @@
     datePickerMode = mode || 'calendar';
     var now = new Date();
     var baseDate;
-    if(datePickerMode === 'stats'){
+    if(datePickerMode === 'stats' || datePickerMode === 'statsyear'){
       baseDate = new Date(statsSpecificYear, statsSpecificMonth, 1);
     }else{
       baseDate = new Date(now.getFullYear(), now.getMonth() + calendarOffset, 1);
@@ -2490,6 +2490,25 @@
     document.getElementById('yearLabel').textContent = pickerYear + '년';
     var grid = document.getElementById('monthPickerGrid');
     grid.innerHTML = '';
+
+    if(datePickerMode === 'statsyear'){
+      var confirmBtn = document.createElement('button');
+      confirmBtn.className = 'savebtn';
+      confirmBtn.type = 'button';
+      confirmBtn.style.width = '100%';
+      confirmBtn.style.gridColumn = '1 / -1';
+      confirmBtn.textContent = pickerYear + '년 선택';
+      confirmBtn.addEventListener('click', function(){
+        statsSpecificYear = pickerYear;
+        statsPeriodMode = 'specificyear';
+        statsPage = 1;
+        closeSheet('datePickerSheet');
+        renderStatsScreen();
+      });
+      grid.appendChild(confirmBtn);
+      return;
+    }
+
     var now = new Date();
     for(var m=0; m<12; m++){
       var cell = document.createElement('div');
@@ -2648,6 +2667,9 @@
     if(mode === 'specificmonth'){
       return { start: dstr(new Date(statsSpecificYear, statsSpecificMonth, 1)), end: dstr(new Date(statsSpecificYear, statsSpecificMonth+1, 0)) };
     }
+    if(mode === 'specificyear'){
+      return { start: statsSpecificYear+'-01-01', end: statsSpecificYear+'-12-31' };
+    }
     return null;
   }
   function getPageGroupStart(page){
@@ -2693,11 +2715,13 @@
 
     html += '<p class="field-label field-label-strong">📅 기간</p>';
     html += '<div class="chiprow" id="statsPeriodChips" style="margin-bottom:16px;">';
-    [['all','전체'],['week','이번주'],['lastweek','전주'],['month','이번달'],['quarter','분기'],['half','반기'],['year','연간']].forEach(function(p){
+    [['all','전체'],['week','이번주'],['lastweek','전주'],['month','이번달'],['quarter','분기'],['half','반기']].forEach(function(p){
       html += '<button class="chip'+(statsPeriodMode===p[0]?' selected':'')+'" data-val="'+p[0]+'" type="button">'+p[1]+'</button>';
     });
     var monthPickLabel = (statsPeriodMode === 'specificmonth') ? ('📅 '+statsSpecificYear+'년 '+(statsSpecificMonth+1)+'월') : '📅 월 선택';
     html += '<button class="chip'+(statsPeriodMode==='specificmonth'?' selected':'')+'" id="statsMonthPickBtn" type="button">'+monthPickLabel+'</button>';
+    var yearPickLabel = (statsPeriodMode === 'specificyear') ? ('📅 '+statsSpecificYear+'년') : '📅 연도 선택';
+    html += '<button class="chip'+(statsPeriodMode==='specificyear'?' selected':'')+'" id="statsYearPickBtn" type="button">'+yearPickLabel+'</button>';
     html += '</div>';
 
     html += '<p class="field-label field-label-strong">🏷️ 유형</p>';
@@ -2800,6 +2824,9 @@
     });
     document.getElementById('statsMonthPickBtn').addEventListener('click', function(){
       openDatePicker('stats');
+    });
+    document.getElementById('statsYearPickBtn').addEventListener('click', function(){
+      openDatePicker('statsyear');
     });
     document.querySelectorAll('#statsTypeChips .chip').forEach(function(c){
       c.addEventListener('click', function(){
