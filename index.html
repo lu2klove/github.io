@@ -535,6 +535,17 @@
   .card-title.no-divider{ border-top:none; padding-top:0; }
   .toast{ font-size:13px; margin:8px 0 0; min-height:16px; }
   .savehint{ font-size:11.5px; color:var(--ink-faint); margin:8px 0 0; }
+  .location-result-item{
+    padding:10px 12px;
+    border:1px solid var(--line);
+    border-radius:8px;
+    margin-top:6px;
+    cursor:pointer;
+    background:var(--paper);
+  }
+  .location-result-item:active{ background:var(--paper-raised); }
+  .location-result-name{ font-weight:700; font-size:13.5px; }
+  .location-result-addr{ font-size:12px; color:var(--ink-soft); margin-top:2px; }
   .helper-link{
     font-size:12px;
     color:var(--blue);
@@ -1964,7 +1975,7 @@
     education: { label:'교육비', icon:'📚', nameLabel:'교육명', hasLocation:true },
     checkup:   { label:'건강검진비', icon:'🏥', nameLabel:'병원명', hasLocation:false },
     travel:    { label:'여행비', icon:'🏖️', nameLabel:'여행지명', hasLocation:false },
-    tenure:    { label:'근속연수비', icon:'🎖️', nameLabel:null, hasLocation:false }
+    tenure:    { label:'근속연수포상금', icon:'🎖️', nameLabel:null, hasLocation:false }
   };
   var WELFARE_LIMITS_KEY = 'workjournal:welfarelimits';
   var WELFARE_LIMITS_LOCAL_KEY = 'work_journal_welfarelimits_v1';
@@ -1989,6 +2000,32 @@
       return;
     }
     try{ localStorage.setItem(WELFARE_LIMITS_LOCAL_KEY, JSON.stringify(welfareLimits)); }catch(e){}
+  }
+
+  var TENURE_AMOUNTS_KEY = 'workjournal:tenureamounts';
+  var TENURE_AMOUNTS_LOCAL_KEY = 'work_journal_tenureamounts_v1';
+  var DEFAULT_TENURE_AMOUNTS = { '10':0, '15':0, '20':0, '25':0, '30':0 };
+  var tenureAmounts = Object.assign({}, DEFAULT_TENURE_AMOUNTS);
+
+  async function loadTenureAmounts(){
+    if(hasClaudeStorage()){
+      try{
+        var res = await window.storage.get(TENURE_AMOUNTS_KEY, false);
+        if(res && res.value) return Object.assign({}, DEFAULT_TENURE_AMOUNTS, JSON.parse(res.value));
+        return Object.assign({}, DEFAULT_TENURE_AMOUNTS);
+      }catch(e){ return Object.assign({}, DEFAULT_TENURE_AMOUNTS); }
+    }
+    try{
+      var raw = localStorage.getItem(TENURE_AMOUNTS_LOCAL_KEY);
+      return raw ? Object.assign({}, DEFAULT_TENURE_AMOUNTS, JSON.parse(raw)) : Object.assign({}, DEFAULT_TENURE_AMOUNTS);
+    }catch(e){ return Object.assign({}, DEFAULT_TENURE_AMOUNTS); }
+  }
+  async function saveTenureAmounts(){
+    if(hasClaudeStorage()){
+      try{ await window.storage.set(TENURE_AMOUNTS_KEY, JSON.stringify(tenureAmounts), false); }catch(e){}
+      return;
+    }
+    try{ localStorage.setItem(TENURE_AMOUNTS_LOCAL_KEY, JSON.stringify(tenureAmounts)); }catch(e){}
   }
 
   function migrateExpenseTypes(list){
@@ -2368,6 +2405,14 @@
     html += '<div class="field"><span class="field-label field-label-strong">🏖️ 여행비 지원한도액(원)</span><input type="number" id="ws_travel" value="'+(welfareLimits.travel||'')+'"></div>';
     html += '<button class="savebtn" id="ws_saveBtn" type="button" style="width:100%;">저장</button>';
     html += '<p class="toast" id="ws_toast"></p>';
+
+    html += '<p class="card-title">🎖️ 근속연수포상금 연수별 금액</p>';
+    [10,15,20,25,30].forEach(function(y){
+      html += '<div class="field"><span class="field-label field-label-strong">'+y+'년 포상금(원)</span><input type="number" class="ws_tenure_input" data-year="'+y+'" value="'+(tenureAmounts[y]||'')+'"></div>';
+    });
+    html += '<button class="savebtn" id="ws_saveTenureBtn" type="button" style="width:100%;">근속연수 포상금 저장</button>';
+    html += '<p class="toast" id="ws_tenureToast"></p>';
+
     body.innerHTML = html;
 
     document.getElementById('ws_saveBtn').addEventListener('click', async function(){
@@ -2379,6 +2424,17 @@
       t.style.color = 'var(--pine)';
       t.textContent = '저장됐어요';
       setTimeout(function(){ t.textContent = ''; }, 1500);
+    });
+    document.getElementById('ws_saveTenureBtn').addEventListener('click', async function(){
+      document.querySelectorAll('.ws_tenure_input').forEach(function(inp){
+        var y = inp.getAttribute('data-year');
+        tenureAmounts[y] = parseFloat(inp.value) || 0;
+      });
+      await saveTenureAmounts();
+      var t2 = document.getElementById('ws_tenureToast');
+      t2.style.color = 'var(--pine)';
+      t2.textContent = '저장됐어요';
+      setTimeout(function(){ t2.textContent = ''; }, 1500);
     });
   }
 
@@ -2594,21 +2650,25 @@
   function renderWelfareDynamicFieldsHTML(type, e){
     var html = '';
     if(type === 'tenure'){
+      var initialYear = e.tenureYears || 10;
       html += '<div class="field"><span class="field-label field-label-strong">🎖️ 근속연수</span><select id="wf_tenureYears">';
       [10,15,20,25,30].forEach(function(y){
-        html += '<option value="'+y+'"'+(e.tenureYears===y?' selected':'')+'>'+y+'년</option>';
+        html += '<option value="'+y+'"'+(initialYear===y?' selected':'')+'>'+y+'년</option>';
       });
       html += '</select></div>';
+      var initialAmount = (e.amount != null) ? e.amount : (tenureAmounts[initialYear] || 0);
+      html += '<div class="field"><span class="field-label field-label-strong">💰 금액(원)</span><input type="number" id="wf_amount" value="'+initialAmount+'"></div>';
+      html += '<p class="savehint">근속연수를 바꾸면 설정된 금액으로 자동 입력돼요 (직접 수정 가능)</p>';
       html += '<div class="field"><span class="field-label">포상휴가(일)</span><input type="number" id="wf_vacationDays" value="'+(e.vacationDays!=null?e.vacationDays:0)+'"></div>';
     }else{
       var m = WELFARE_TYPE_META[type];
       html += '<div class="field"><span class="field-label field-label-strong">'+escapeHtml(m.nameLabel)+'</span><input type="text" id="wf_itemName" value="'+escapeHtml(e.itemName||'')+'"></div>';
       if(m.hasLocation){
-        html += '<div class="field"><span class="field-label">교육장소</span><input type="text" id="wf_location" value="'+escapeHtml(e.location||'')+'"></div>';
+        html += '<div class="field"><span class="field-label">교육장소</span><div class="symbol-row" style="display:flex;gap:8px;"><input type="text" id="wf_location" value="'+escapeHtml(e.location||'')+'" style="flex:1;"><button class="cancelbtn" id="wf_locationSearchBtn" type="button" style="white-space:nowrap;padding:11px 14px;">🔍 검색</button></div><div id="wf_locationResults"></div></div>';
       }
-      html += '<div class="field"><span class="field-label field-label-strong">💰 금액(원)</span><input type="number" id="wf_amount" value="'+(e.amount!=null?e.amount:'')+'"></div>';
+      html += '<div class="field"><span class="field-label field-label-strong">💰 금액(원)</span><div style="display:flex;align-items:center;gap:8px;"><input type="number" id="wf_amount" value="'+(e.amount!=null?e.amount:'')+'" style="flex:1;"><span id="wf_amountWarning" style="font-size:20px;display:none;">⚠️</span></div></div>';
       var limit = welfareLimits[type] || 0;
-      html += '<p class="savehint">'+m.label+' 지원한도액: '+formatWon(limit)+'원 (설정에서 변경 가능)</p>';
+      html += '<p class="savehint" id="wf_limitHint">'+m.label+' 지원한도액: '+formatWon(limit)+'원 (설정에서 변경 가능)</p>';
       html += '<div class="field"><span class="field-label">정산현황</span><div class="chiprow" id="wf_settlement">';
       ['pending','done','none'].forEach(function(k){
         html += '<button class="chip'+(e.settlementStatus===k?' selected':'')+'" data-val="'+k+'" type="button">'+SETTLEMENT_LABEL[k]+'</button>';
@@ -2619,7 +2679,18 @@
     return html;
   }
   function wireWelfareDynamicFields(type){
-    if(type === 'tenure') return;
+    if(type === 'tenure'){
+      var yearSel = document.getElementById('wf_tenureYears');
+      if(yearSel){
+        yearSel.addEventListener('change', function(){
+          var amountInp = document.getElementById('wf_amount');
+          if(amountInp){
+            amountInp.value = tenureAmounts[yearSel.value] || 0;
+          }
+        });
+      }
+      return;
+    }
     document.querySelectorAll('#wf_settlement .chip').forEach(function(c){
       c.addEventListener('click', function(){
         document.querySelectorAll('#wf_settlement .chip').forEach(function(x){ x.classList.remove('selected'); });
@@ -2628,6 +2699,62 @@
         if(depositField) depositField.style.display = (c.getAttribute('data-val') === 'done') ? 'block' : 'none';
       });
     });
+    var wfAmountInp = document.getElementById('wf_amount');
+    var wfLimit = welfareLimits[type] || 0;
+    if(wfAmountInp){
+      wfAmountInp.addEventListener('input', function(){
+        var warnEl = document.getElementById('wf_amountWarning');
+        if(!warnEl) return;
+        var amt = parseFloat(wfAmountInp.value) || 0;
+        warnEl.style.display = (wfLimit > 0 && amt > wfLimit) ? 'inline' : 'none';
+      });
+      wfAmountInp.dispatchEvent(new Event('input'));
+    }
+    var locSearchBtn = document.getElementById('wf_locationSearchBtn');
+    if(locSearchBtn){
+      locSearchBtn.addEventListener('click', async function(){
+        var locInp = document.getElementById('wf_location');
+        var resultsEl = document.getElementById('wf_locationResults');
+        var query = locInp.value.trim();
+        if(!query){
+          resultsEl.innerHTML = '<p class="toast" style="color:var(--brick);">검색어를 입력해주세요</p>';
+          return;
+        }
+        resultsEl.innerHTML = '<p class="savehint">검색 중…</p>';
+        try{
+          var res = await fetch('/api/kakao-search?query=' + encodeURIComponent(query));
+          var rawText = await res.text();
+          var data;
+          try{ data = JSON.parse(rawText); }catch(e){
+            throw new Error('서버 응답 오류 (HTTP '+res.status+')');
+          }
+          if(!res.ok || data.error){
+            throw new Error(data.error || ('서버 오류 (HTTP '+res.status+')'));
+          }
+          if(!data.results || data.results.length === 0){
+            resultsEl.innerHTML = '<p class="savehint">검색 결과가 없어요.</p>';
+            return;
+          }
+          var html = '';
+          data.results.forEach(function(r, i){
+            html += '<div class="location-result-item" data-idx="'+i+'">';
+            html += '<div class="location-result-name">'+escapeHtml(r.name)+'</div>';
+            html += '<div class="location-result-addr">'+escapeHtml(r.address)+'</div>';
+            html += '</div>';
+          });
+          resultsEl.innerHTML = html;
+          resultsEl.querySelectorAll('.location-result-item').forEach(function(item){
+            item.addEventListener('click', function(){
+              var idx = parseInt(item.getAttribute('data-idx'), 10);
+              locInp.value = data.results[idx].name;
+              resultsEl.innerHTML = '';
+            });
+          });
+        }catch(err){
+          resultsEl.innerHTML = '<p class="toast" style="color:var(--brick);">검색 실패: '+(err && err.message ? err.message : err)+'</p>';
+        }
+      });
+    }
   }
   function openWelfareForm(existing){
     editingWelfareId = existing ? existing.id : null;
@@ -2693,6 +2820,7 @@
     if(welfareType === 'tenure'){
       payload.tenureYears = parseInt(document.getElementById('wf_tenureYears').value, 10);
       payload.vacationDays = parseFloat(document.getElementById('wf_vacationDays').value) || 0;
+      payload.amount = parseFloat(document.getElementById('wf_amount').value) || 0;
     }else{
       payload.itemName = document.getElementById('wf_itemName').value.trim();
       if(document.getElementById('wf_location')){
@@ -3360,6 +3488,7 @@
     document.getElementById('tripCloseBtn').addEventListener('click', function(){ closeSheet('tripSheet'); });
     document.getElementById('expenseCloseBtn').addEventListener('click', function(){ closeSheet('expenseSheet'); });
     document.getElementById('overtimeCloseBtn').addEventListener('click', function(){ closeSheet('overtimeSheet'); });
+    document.getElementById('welfareCloseBtn').addEventListener('click', function(){ closeSheet('welfareSheet'); });
     document.getElementById('datePickerCloseBtn').addEventListener('click', function(){ closeSheet('datePickerSheet'); });
     document.getElementById('settingsCloseBtn').addEventListener('click', function(){ closeSheet('settingsSheet'); });
     document.getElementById('expenseSettingsRowBtn').addEventListener('click', function(){
@@ -3512,6 +3641,7 @@
       paymentCards = await loadCards();
       overtimePresets = await loadOvertimePresets();
       welfareLimits = await loadWelfareLimits();
+      tenureAmounts = await loadTenureAmounts();
       monthlyBudget = await loadMonthlyBudget();
       renderCalendar();
       renderDayDetail();
