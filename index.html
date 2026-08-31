@@ -154,6 +154,17 @@
     margin-bottom:14px;
     border-bottom:1px solid var(--line);
   }
+  .stat-block{
+    background:none;
+    border:none;
+    padding:6px 10px;
+    border-radius:10px;
+    cursor:pointer;
+    font-family:inherit;
+  }
+  .stat-block:active{
+    background:var(--paper);
+  }
   .statnum{
     font-family:'IBM Plex Mono',monospace;
     font-size:22px;
@@ -786,21 +797,21 @@
 
   <div class="card">
     <div class="statsrow-top">
-      <div>
+      <button class="stat-block" id="statBlockTrip" type="button">
         <p class="statnum" id="statTrip">0</p>
         <p class="statlabel">✈️ 출장</p>
         <p class="statamt" id="statTripAmt"></p>
-      </div>
-      <div>
+      </button>
+      <button class="stat-block" id="statBlockExpense" type="button">
         <p class="statnum" id="statExpense">0</p>
         <p class="statlabel">💳 경비</p>
         <p class="statamt" id="statExpenseAmt"></p>
-      </div>
-      <div>
+      </button>
+      <button class="stat-block" id="statBlockOvertime" type="button">
         <p class="statnum" id="statOvertime">0</p>
         <p class="statlabel">🌙 야근</p>
         <p class="statamt" id="statOvertimeAmt"></p>
-      </div>
+      </button>
     </div>
 
     <div class="monthnav">
@@ -902,6 +913,15 @@
     <button class="sheet-close" id="otSettingsCloseBtn" type="button">✕</button>
   </div>
   <div id="otSettingsBody"></div>
+</div>
+
+<!-- 이번달 유형별 내역 -->
+<div class="bottom-sheet" id="monthTypeSheet">
+  <div class="sheet-head">
+    <span class="sheet-title" id="monthTypeSheetTitle">📋 내역</span>
+    <button class="sheet-close" id="monthTypeCloseBtn" type="button">✕</button>
+  </div>
+  <div id="monthTypeBody"></div>
 </div>
 
 <!-- 설정 -->
@@ -1271,12 +1291,17 @@
   function entriesForDate(dateStr){
     return entries.filter(function(e){ return e.date === dateStr; });
   }
-  function renderStats(){
+  function currentDisplayedMonthRange(){
     var now = new Date();
     var displayDate = new Date(now.getFullYear(), now.getMonth() + calendarOffset, 1);
     var y = displayDate.getFullYear(), m = displayDate.getMonth();
     var monthStart = y+'-'+String(m+1).padStart(2,'0')+'-01';
     var monthEnd = y+'-'+String(m+1).padStart(2,'0')+'-'+String(new Date(y,m+1,0).getDate()).padStart(2,'0');
+    return { start: monthStart, end: monthEnd, year: y, month: m };
+  }
+  function renderStats(){
+    var range = currentDisplayedMonthRange();
+    var monthStart = range.start, monthEnd = range.end;
 
     var monthEntries = entries.filter(function(e){ return e.date >= monthStart && e.date <= monthEnd; });
     var tripEntries = monthEntries.filter(function(e){ return e.type==='trip'; });
@@ -2647,6 +2672,10 @@
     if(statsEl && statsEl.classList.contains('open')){
       renderStatsScreen();
     }
+    var monthTypeEl = document.getElementById('monthTypeSheet');
+    if(monthTypeEl && monthTypeEl.classList.contains('open') && currentMonthTypeSheetType){
+      renderMonthTypeSheet(currentMonthTypeSheetType);
+    }
   }
   function statsFilteredEntries(){
     var range = getPeriodRange(statsPeriodMode);
@@ -2790,6 +2819,80 @@
         });
       });
     }
+  }
+
+  var monthTypeConfirmDeleteId = null;
+  var currentMonthTypeSheetType = null;
+  function renderMonthTypeSheet(type){
+    currentMonthTypeSheetType = type;
+    var range = currentDisplayedMonthRange();
+    var list = entries.filter(function(e){
+      return e.type === type && e.date >= range.start && e.date <= range.end;
+    }).sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+
+    var meta = TYPE_META[type];
+    document.getElementById('monthTypeSheetTitle').textContent = meta.icon + ' ' + (range.month+1) + '월 ' + meta.label + ' 내역';
+
+    var body = document.getElementById('monthTypeBody');
+    var html = '';
+    if(list.length === 0){
+      html += '<p class="empty-inline">이번 달 기록이 없어요.</p>';
+    }else{
+      list.forEach(function(e){
+        html += '<div class="record-item">';
+        html += '<div class="record-top">';
+        html += '<span class="record-badge '+e.type+'">'+meta.icon+' '+meta.label+'</span>';
+        html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
+        html += '</div>';
+        html += '<p class="record-sub">'+niceDate(e.date)+' · '+recordSummary(e)+'</p>';
+        var isConfirming = monthTypeConfirmDeleteId === e.id;
+        html += '<div class="record-actions" style="margin-top:8px;">';
+        if(isConfirming){
+          html += '<span style="font-size:12.5px;color:var(--brick);">정말 삭제할까요?</span>';
+          html += '<button class="danger" data-mt-confirmdel="'+e.id+'" type="button">삭제</button>';
+          html += '<button class="cancelbtn" data-mt-canceldel="'+e.id+'" type="button" style="padding:6px 12px;font-size:12.5px;">취소</button>';
+        }else{
+          html += '<button class="cancelbtn" data-mt-edit="'+e.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">수정</button>';
+          html += '<button class="danger" data-mt-askdel="'+e.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">삭제</button>';
+        }
+        html += '</div>';
+        html += '</div>';
+      });
+    }
+    body.innerHTML = html;
+
+    body.querySelectorAll('[data-mt-edit]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = btn.getAttribute('data-mt-edit');
+        var entry = entries.find(function(x){ return x.id === id; });
+        if(!entry) return;
+        if(entry.type === 'trip') openTripForm(entry);
+        else if(entry.type === 'expense') openExpenseForm(entry);
+        else openOvertimeForm(entry);
+      });
+    });
+    body.querySelectorAll('[data-mt-askdel]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        monthTypeConfirmDeleteId = btn.getAttribute('data-mt-askdel');
+        renderMonthTypeSheet(type);
+      });
+    });
+    body.querySelectorAll('[data-mt-canceldel]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        monthTypeConfirmDeleteId = null;
+        renderMonthTypeSheet(type);
+      });
+    });
+    body.querySelectorAll('[data-mt-confirmdel]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        var id = btn.getAttribute('data-mt-confirmdel');
+        entries = entries.filter(function(x){ return x.id !== id; });
+        await saveEntries();
+        monthTypeConfirmDeleteId = null;
+        renderCalendar();
+        renderMonthTypeSheet(type);
+      });
+    });
   }
 
   function renderStatsList(filtered){
@@ -2952,6 +3055,23 @@
       calendarOffset = 0;
       renderCalendar();
       renderDayDetail();
+    });
+    document.getElementById('statBlockTrip').addEventListener('click', function(){
+      renderMonthTypeSheet('trip');
+      openSheet('monthTypeSheet');
+    });
+    document.getElementById('statBlockExpense').addEventListener('click', function(){
+      renderMonthTypeSheet('expense');
+      openSheet('monthTypeSheet');
+    });
+    document.getElementById('statBlockOvertime').addEventListener('click', function(){
+      renderMonthTypeSheet('overtime');
+      openSheet('monthTypeSheet');
+    });
+    document.getElementById('monthTypeCloseBtn').addEventListener('click', function(){
+      closeSheet('monthTypeSheet');
+      currentMonthTypeSheetType = null;
+      monthTypeConfirmDeleteId = null;
     });
     document.getElementById('statsOpenBtn').addEventListener('click', function(){
       statsPeriodMode = 'all';
