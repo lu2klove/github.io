@@ -548,24 +548,31 @@
     z-index:950;
     transform:translateX(100%);
     transition:transform .3s ease;
+  }
+  .side-screen.open{ transform:translateX(0); }
+  .side-scroll-wrap{
+    position:absolute;
+    inset:0;
     overflow-y:auto;
-    padding-top:env(safe-area-inset-top);
+    -webkit-overflow-scrolling:touch;
     padding-bottom:env(safe-area-inset-bottom);
     box-sizing:border-box;
   }
-  .side-screen.open{ transform:translateX(0); }
   .side-header{
-    position:sticky;
-    top:0;
+    position:fixed;
+    top:env(safe-area-inset-top);
+    left:0;
+    right:0;
     background:var(--paper);
     display:flex;
     align-items:center;
     justify-content:space-between;
     padding:16px;
     border-bottom:1px solid var(--line);
-    z-index:1;
+    z-index:2;
     max-width:480px;
     margin:0 auto;
+    box-sizing:border-box;
   }
   @media (min-width:768px){ .side-header{ max-width:720px; } }
   .side-back{
@@ -579,11 +586,12 @@
   }
   .side-title{ font-weight:700; font-size:15px; }
   .side-body{
-    padding:16px;
+    padding:calc(76px + env(safe-area-inset-top)) 16px 16px;
     max-width:480px;
     margin:0 auto;
+    box-sizing:border-box;
   }
-  @media (min-width:768px){ .side-body{ max-width:720px; padding:24px; } }
+  @media (min-width:768px){ .side-body{ max-width:720px; padding:calc(84px + env(safe-area-inset-top)) 24px 24px; } }
 
   .stat-bar-row{ margin-bottom:14px; }
   .stat-bar-label{
@@ -816,7 +824,9 @@
     <span class="side-title">📊 통계</span>
     <span style="width:44px;"></span>
   </div>
-  <div class="side-body" id="statsBody"></div>
+  <div class="side-scroll-wrap">
+    <div class="side-body" id="statsBody"></div>
+  </div>
 </div>
 
 <button class="fab-settings" id="fabSettingsBtn" type="button" aria-label="설정">⚙️</button>
@@ -1492,6 +1502,25 @@
     return Math.floor((n||0) / 10) * 10;
   }
 
+  async function fetchOpinetFuelPrice(fuelType, dateStr){
+    var qs = 'fuelType=' + encodeURIComponent(fuelType);
+    if(dateStr){
+      qs += '&date=' + encodeURIComponent(dateStr.replace(/-/g,''));
+    }
+    var res = await fetch('/.netlify/functions/opinet-price?' + qs);
+    var rawText = await res.text();
+    var data;
+    try{
+      data = JSON.parse(rawText);
+    }catch(parseErr){
+      throw new Error('서버 응답 형식 오류 (HTTP ' + res.status + '): ' + rawText.slice(0, 80));
+    }
+    if(!res.ok || data.error){
+      throw new Error(data.error || ('서버 오류 (HTTP ' + res.status + ')'));
+    }
+    return { price: data.price, date: data.date, usedFallback: data.usedFallback };
+  }
+
   function computeCarDailyAllowance(days){
     if(!days || days < 1) return 0;
     var d30 = Math.ceil(days / 2);
@@ -1555,7 +1584,7 @@
     html += '</div></div>';
     html += '<div class="field"><span class="field-label">배기량(cc, 참고용)</span><input type="number" id="tf_disp" value="'+(e.displacement!=null?e.displacement:'')+'"></div>';
     html += '<div class="row2"><div class="field"><span class="field-label">운행거리(km)</span><input type="number" id="tf_distance" value="'+(e.distance!=null?e.distance:'')+'"></div><div class="field"><span class="field-label">연비(km/L)</span><input type="number" id="tf_efficiency" value="'+(e.fuelEfficiency!=null?e.fuelEfficiency:'')+'"></div></div>';
-    html += '<div class="field"><span class="field-label">유류단가(원/L)</span><input type="number" id="tf_fuelprice" value="'+(e.fuelPrice!=null?e.fuelPrice:'')+'"><p class="savehint"><a class="helper-link" href="https://www.opinet.co.kr" target="_blank" rel="noopener">오피넷에서 유가 확인 ↗</a></p></div>';
+    html += '<div class="field"><span class="field-label">유류단가(원/L)</span><div class="symbol-row" style="display:flex;gap:8px;"><input type="number" id="tf_fuelprice" value="'+(e.fuelPrice!=null?e.fuelPrice:'')+'" style="flex:1;"><button class="cancelbtn" id="tf_fetchFuelBtn" type="button" style="white-space:nowrap;padding:11px 14px;">🔄 출장일 기준 조회</button></div><p class="fetch-status" id="tf_fuelFetchStatus" style="font-size:12px;color:var(--ink-faint);margin:6px 0 0;"></p><p class="savehint"><a class="helper-link" href="https://www.opinet.co.kr/user/main/mainView.do" target="_blank" rel="noopener">직접 오피넷에서 확인 ↗</a> (자동조회는 최근 7일 이내 날짜만 정확해요. 그 이전 날짜는 최신가로 대체돼요)</p><p class="totalline" id="tf_fuelCostLine"></p></div>';
     html += '</div>';
 
     html += '<p class="field-label" style="margin-top:4px;">교통비 (톨게이트·주차 등, 참고: <a class="helper-link" href="https://www.hipass.co.kr" target="_blank" rel="noopener">하이패스 ↗</a>)</p>';
@@ -1620,6 +1649,18 @@
     var state = currentTripState({});
     var total = computeTripTotal(state);
     document.getElementById('tf_totalDisplay').textContent = formatWon(total) + '원';
+    var fuelLine = document.getElementById('tf_fuelCostLine');
+    if(fuelLine){
+      var distance = parseFloat(state.distance);
+      var fuelPrice = parseFloat(state.fuelPrice);
+      var efficiency = parseFloat(state.fuelEfficiency);
+      if(distance > 0 && fuelPrice > 0 && efficiency > 0){
+        var fuelCost = Math.round(distance * fuelPrice / efficiency);
+        fuelLine.innerHTML = '유류비 계산 · <b>'+formatWon(fuelCost)+'원</b> (운행거리 ÷ 연비 × 단가)';
+      }else{
+        fuelLine.textContent = '';
+      }
+    }
   }
   var tripDailyManuallyEdited = false;
   function maybeAutoFillDailyAllowance(){
@@ -1703,6 +1744,28 @@
       document.getElementById('tf_flightcost').addEventListener('input', updateTripTotal);
     }
     document.getElementById('tf_excludeFuel').addEventListener('change', updateTripTotal);
+    document.getElementById('tf_fetchFuelBtn').addEventListener('click', async function(){
+      var statusEl = document.getElementById('tf_fuelFetchStatus');
+      var fuelTypeChip = document.querySelector('#tf_fuelType .chip.selected');
+      var fuelType = fuelTypeChip ? fuelTypeChip.getAttribute('data-val') : 'gasoline';
+      var tripDate = document.getElementById('tf_date').value;
+      statusEl.style.color = 'var(--ink-faint)';
+      statusEl.textContent = '조회 중...';
+      try{
+        var result = await fetchOpinetFuelPrice(fuelType, tripDate);
+        document.getElementById('tf_fuelprice').value = result.price;
+        statusEl.style.color = 'var(--pine)';
+        if(result.usedFallback){
+          statusEl.textContent = '출장일 기준 데이터가 없어(7일 이전) 최신 데이터로 대체 · '+result.date+' 전국 평균 · '+formatWon(result.price)+'원/L';
+        }else{
+          statusEl.textContent = result.date + ' (출장일 기준) 전국 평균 · '+formatWon(result.price)+'원/L 적용됨';
+        }
+        updateTripTotal();
+      }catch(err){
+        statusEl.style.color = 'var(--brick)';
+        statusEl.textContent = '자동 조회 실패: ' + err.message + ' — 아래 링크로 직접 확인해서 입력해주세요.';
+      }
+    });
 
     document.getElementById('tf_cancelBtn').addEventListener('click', function(){ closeSheet('tripSheet'); });
     document.getElementById('tf_saveBtn').addEventListener('click', saveTripForm);
