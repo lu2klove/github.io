@@ -2738,8 +2738,11 @@
         html += '<div class="stat-bar-row">';
         html += '<div class="stat-bar-label"><span>'+escapeHtml(t.name)+' · '+b.count+'건</span><span style="font-family:\'IBM Plex Mono\',monospace;font-weight:700;">'+formatWon(b.amount)+'원</span></div>';
         html += '<div class="stat-bar-track"><div class="stat-bar-fill" style="width:'+pct+'%;background:var(--olive);"></div></div>';
-        if(t.budget > 0){
+        var budgetApplicablePeriod = (statsPeriodMode === 'week' || statsPeriodMode === 'lastweek' || statsPeriodMode === 'month');
+        if(t.budget > 0 && budgetApplicablePeriod){
           html += renderBudgetStatusHTML(b.amount, t.budget);
+        }else if(t.budget > 0){
+          html += '<p style="font-size:11px;color:var(--ink-faint);margin:5px 0 0;">예산 비교는 이번주·전주·이번달 기간에서만 표시돼요</p>';
         }
         html += '</div>';
       });
