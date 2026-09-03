@@ -1080,6 +1080,13 @@
 
 <div class="sheet-backdrop" id="sheetBackdrop"></div>
 
+<div id="imageViewerModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.92);">
+  <button id="imageViewerCloseBtn" type="button" aria-label="닫기" style="position:absolute;top:calc(16px + env(safe-area-inset-top));right:16px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,0.15);color:#fff;border:none;font-size:22px;z-index:10000;cursor:pointer;">✕</button>
+  <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:24px;box-sizing:border-box;">
+    <img id="imageViewerImg" src="" style="max-width:100%;max-height:100%;object-fit:contain;">
+  </div>
+</div>
+
 <!-- 출장 등록 -->
 <div class="bottom-sheet" id="tripSheet">
   <div class="sheet-head">
@@ -1836,8 +1843,7 @@
         var id = img.getAttribute('data-receipt-view');
         var e = entries.find(function(x){ return x.id === id; });
         if(!e || !e.receiptImage) return;
-        var w = window.open('');
-        if(w) w.document.write('<title>영수증</title><body style="margin:0;background:#000;display:flex;"><img src="'+e.receiptImage+'" style="max-width:100%;margin:auto;">');
+        openImageViewer(e.receiptImage);
       });
     });
     inner.querySelectorAll('[data-edit]').forEach(function(btn){
@@ -2491,7 +2497,11 @@
     }else{
       employees.forEach(function(emp){
         html += '<div class="record-item">';
-        html += '<div class="record-top"><span class="record-badge" style="background:var(--amber-soft);color:var(--amber);">👤 '+escapeHtml(emp.name)+'</span>';
+        html += '<div class="record-top" style="align-items:center;">';
+        if(emp.photo){
+          html += '<img src="'+emp.photo+'" style="width:32px;height:32px;object-fit:cover;border-radius:50%;margin-right:6px;">';
+        }
+        html += '<span class="record-badge" style="background:var(--amber-soft);color:var(--amber);">👤 '+escapeHtml(emp.name)+'</span>';
         html += '<span style="font-size:12px;color:var(--ink-faint);">'+escapeHtml(emp.position||'')+'</span></div>';
         html += '<p class="record-sub">'+escapeHtml([emp.company,emp.department,emp.project,emp.job].filter(Boolean).join(' · ')||'-')+'</p>';
         html += '<div class="record-actions">';
@@ -2522,8 +2532,11 @@
   function openEmployeeForm(existing){
     editingEmployeeId = existing ? existing.id : null;
     var e = existing || {};
+    currentEmployeePhoto = e.photo || null;
     var body = document.getElementById('employeeFormBody');
     var html = '';
+    html += '<div style="display:flex;justify-content:center;margin-bottom:14px;"><div id="emp_photoPreview">'+employeePhotoPreviewHTML()+'</div></div>';
+    html += '<input type="file" accept="image/*" id="emp_photoInput" style="display:none;">';
     html += '<div class="field"><span class="field-label field-label-strong">👤 직원명</span><input type="text" id="emp_name" placeholder="예: 홍길동" value="'+escapeHtml(e.name||'')+'"></div>';
     function optSelect(fieldId, list, current){
       var h = '<select id="'+fieldId+'"><option value="">선택 안 함</option>';
@@ -2553,6 +2566,7 @@
       html += '<button class="danger" id="emp_deleteBtn" type="button" style="width:100%;margin-top:10px;">이 직원 삭제</button>';
     }
     body.innerHTML = html;
+    wireEmployeePhotoField();
     document.getElementById('emp_cancelBtn').addEventListener('click', function(){ closeSheet('employeeFormSheet'); });
     document.getElementById('emp_saveBtn').addEventListener('click', saveEmployeeForm);
     var delBtn = document.getElementById('emp_deleteBtn');
@@ -2584,7 +2598,8 @@
       resignDate: document.getElementById('emp_resignDate').value,
       leaveDate: document.getElementById('emp_leaveDate').value,
       returnDate: document.getElementById('emp_returnDate').value,
-      workLocation: document.getElementById('emp_workLocation').value.trim()
+      workLocation: document.getElementById('emp_workLocation').value.trim(),
+      photo: currentEmployeePhoto || null
     };
     if(editingEmployeeId){
       var idx = employees.findIndex(function(x){ return x.id === editingEmployeeId; });
@@ -2959,6 +2974,42 @@
     }
 
     var filteredEvals = evalYearFilter === 'all' ? evaluations : evaluations.filter(function(e){ return e.year === evalYearFilter; });
+
+    if(filteredEvals.length > 0){
+      var gradeCounts = { 'E+':0, 'E':0, 'M+':0, 'M':0, 'I':0, 'N':0 };
+      var gradeColors = {};
+      filteredEvals.forEach(function(ev){
+        var g = computeEvalGrade(ev.finalScore, ev.excluded);
+        gradeCounts[g.grade] = (gradeCounts[g.grade]||0) + 1;
+        gradeColors[g.grade] = g.color;
+      });
+      var gradeOrder = ['E+','E','M+','M','I','N'];
+      var totalEvals = filteredEvals.length;
+      html += '<div class="rule-card" style="margin-bottom:20px;">';
+      html += '<p style="font-weight:700;font-size:14px;margin:0 0 12px;text-align:center;">📊 등급 분포</p>';
+      var gradientParts = [];
+      var cumPct = 0;
+      gradeOrder.forEach(function(g){
+        if(gradeCounts[g] === 0) return;
+        var pct = gradeCounts[g] / totalEvals * 100;
+        gradientParts.push(gradeColors[g] + ' ' + cumPct + '% ' + (cumPct+pct) + '%');
+        cumPct += pct;
+      });
+      html += '<div style="display:flex;justify-content:center;margin-bottom:16px;">';
+      html += '<div style="width:160px;height:160px;border-radius:50%;background:conic-gradient('+gradientParts.join(', ')+');display:flex;align-items:center;justify-content:center;">';
+      html += '<div style="width:100px;height:100px;border-radius:50%;background:var(--paper-raised);display:flex;flex-direction:column;align-items:center;justify-content:center;">';
+      html += '<span style="font-size:20px;font-weight:700;">'+totalEvals+'</span><span style="font-size:11px;color:var(--ink-faint);">건</span>';
+      html += '</div></div></div>';
+      gradeOrder.forEach(function(g){
+        if(gradeCounts[g] === 0) return;
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;">';
+        html += '<span style="width:10px;height:10px;border-radius:50%;background:'+gradeColors[g]+';display:inline-block;flex-shrink:0;"></span>';
+        html += '<span style="flex:1;font-weight:700;color:'+gradeColors[g]+';">'+g+'</span><b>'+gradeCounts[g]+'건 ('+(gradeCounts[g]/totalEvals*100).toFixed(0)+'%)</b>';
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+
     var sorted = filteredEvals.slice().sort(function(a,b){ return b.finalScore - a.finalScore; });
     if(sorted.length === 0){
       html += '<p class="empty-inline">등록된 평가가 없어요.</p>';
@@ -3364,13 +3415,66 @@
     });
   }
 
+  var currentEmployeePhoto = null;
+  function employeePhotoPreviewHTML(){
+    if(currentEmployeePhoto){
+      return '<div style="position:relative;display:inline-block;">'+
+        '<img src="'+currentEmployeePhoto+'" style="width:96px;height:96px;object-fit:cover;border-radius:50%;border:1px solid var(--line);cursor:pointer;display:block;" id="emp_photoThumb">'+
+        '<button type="button" id="emp_photoRemoveBtn" style="position:absolute;top:-4px;right:-4px;background:var(--brick);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;line-height:1;">✕</button>'+
+        '</div>';
+    }
+    return '<button type="button" class="cancelbtn" id="emp_photoAddBtn" style="width:96px;height:96px;border-radius:50%;">📷 사진</button>';
+  }
+  function refreshEmployeePhotoPreview(){
+    var box = document.getElementById('emp_photoPreview');
+    if(!box) return;
+    box.innerHTML = employeePhotoPreviewHTML();
+    wireEmployeePhotoButtons();
+  }
+  function wireEmployeePhotoButtons(){
+    var addBtn = document.getElementById('emp_photoAddBtn');
+    if(addBtn){
+      addBtn.addEventListener('click', function(){ document.getElementById('emp_photoInput').click(); });
+    }
+    var removeBtn = document.getElementById('emp_photoRemoveBtn');
+    if(removeBtn){
+      removeBtn.addEventListener('click', function(){
+        currentEmployeePhoto = null;
+        refreshEmployeePhotoPreview();
+      });
+    }
+    var thumb = document.getElementById('emp_photoThumb');
+    if(thumb){
+      thumb.addEventListener('click', function(){ openImageViewer(currentEmployeePhoto); });
+    }
+  }
+  function wireEmployeePhotoField(){
+    wireEmployeePhotoButtons();
+    document.getElementById('emp_photoInput').addEventListener('change', function(ev){
+      var file = ev.target.files[0];
+      if(!file) return;
+      compressImageToDataURL(file, function(dataUrl){
+        currentEmployeePhoto = dataUrl;
+        refreshEmployeePhotoPreview();
+      }, 400);
+    });
+  }
+
   var currentReceiptImage = null;
-  function compressImageToDataURL(file, callback){
+  function openImageViewer(dataUrl){
+    document.getElementById('imageViewerImg').src = dataUrl;
+    document.getElementById('imageViewerModal').style.display = 'block';
+  }
+  function closeImageViewer(){
+    document.getElementById('imageViewerModal').style.display = 'none';
+    document.getElementById('imageViewerImg').src = '';
+  }
+  function compressImageToDataURL(file, callback, maxWidthOverride){
     var reader = new FileReader();
     reader.onload = function(ev){
       var img = new Image();
       img.onload = function(){
-        var maxW = 1000;
+        var maxW = maxWidthOverride || 1000;
         var scale = Math.min(1, maxW / img.width);
         var canvas = document.createElement('canvas');
         canvas.width = Math.round(img.width * scale);
@@ -3413,8 +3517,7 @@
     var thumb = document.getElementById(prefix+'_receiptThumb');
     if(thumb){
       thumb.addEventListener('click', function(){
-        var w = window.open('');
-        if(w) w.document.write('<title>영수증</title><body style="margin:0;background:#000;display:flex;"><img src="'+currentReceiptImage+'" style="max-width:100%;margin:auto;">');
+        openImageViewer(currentReceiptImage);
       });
     }
   }
@@ -5146,6 +5249,10 @@
       setTimeout(function(){ t.textContent=''; }, 2000);
     });
     document.getElementById('sheetBackdrop').addEventListener('click', closeAllSheets);
+    document.getElementById('imageViewerCloseBtn').addEventListener('click', closeImageViewer);
+    document.getElementById('imageViewerModal').addEventListener('click', function(ev){
+      if(ev.target.id === 'imageViewerModal') closeImageViewer();
+    });
     document.getElementById('tripCloseBtn').addEventListener('click', function(){ closeSheet('tripSheet'); });
     document.getElementById('expenseCloseBtn').addEventListener('click', function(){ closeSheet('expenseSheet'); });
     document.getElementById('overtimeCloseBtn').addEventListener('click', function(){ closeSheet('overtimeSheet'); });
