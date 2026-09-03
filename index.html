@@ -401,7 +401,7 @@
     opacity:0.4;
     cursor:not-allowed;
   }
-  #ev_achieveSlider{
+  #ev_achieveSlider, #ev_diligenceSlider{
     -webkit-appearance:none;
     appearance:none;
     height:10px;
@@ -410,7 +410,7 @@
     outline:none;
     margin:10px 0 4px;
   }
-  #ev_achieveSlider::-webkit-slider-thumb{
+  #ev_achieveSlider::-webkit-slider-thumb, #ev_diligenceSlider::-webkit-slider-thumb{
     -webkit-appearance:none;
     appearance:none;
     width:26px;
@@ -421,7 +421,7 @@
     cursor:pointer;
     box-shadow:0 1px 4px rgba(0,0,0,0.3);
   }
-  #ev_achieveSlider::-moz-range-thumb{
+  #ev_achieveSlider::-moz-range-thumb, #ev_diligenceSlider::-moz-range-thumb{
     width:26px;
     height:26px;
     border-radius:50%;
@@ -1935,7 +1935,13 @@
       var parts5 = [];
       if(emp) parts5.push(emp.name);
       if(e.workType) parts5.push(e.workType);
-      if(e.time) parts5.push(e.time);
+      if(e.allDay){
+        parts5.push('하루종일');
+      }else if(e.startTime || e.endTime){
+        parts5.push((e.startTime||'?')+'~'+(e.endTime||'?'));
+      }else if(e.time){
+        parts5.push(e.time);
+      }
       if(e.content) parts5.push(e.content.slice(0,30));
       return escapeHtml(parts5.join(' · ') || '근무기록');
     }
@@ -2724,8 +2730,14 @@
     html += '</div>';
     html += '<div class="field"><span class="field-label">평가연도</span><input type="number" id="ev_year" value="'+(e.year||new Date().getFullYear())+'"></div>';
 
-    html += '<p class="card-title" style="margin-top:20px;">📊 평가 기준표 (100점)</p>';
-    html += '<div class="field"><span class="field-label">🏃 성실도 (최대 10) — 근태·태도(적극성·능동적·납기준수·보고 등)</span><input type="number" step="0.5" min="0" max="10" class="ev-score" id="ev_diligence" value="'+(e.diligence!=null?e.diligence:0)+'"></div>';
+    html += '<p style="font-size:17px;font-weight:800;color:var(--ink);margin:20px 0 14px;">📊 평가 기준표 (100점)</p>';
+    html += '<p class="field-label field-label-strong">🏃 성실도 (최대 10)</p>';
+    html += '<p class="savehint" style="margin-top:-4px;">근태·태도(적극성·능동적·납기준수·보고 등)</p>';
+    html += '<div class="rule-card">';
+    html += '<input type="range" id="ev_diligenceSlider" min="0" max="10" step="0.5" value="'+(e.diligence!=null?e.diligence:0)+'" style="width:100%;">';
+    html += '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-faint);margin-top:2px;"><span>0</span><span>평균 5</span><span>10</span></div>';
+    html += '<p style="text-align:center;font-weight:700;font-size:18px;margin:8px 0 0;color:var(--amber);" id="ev_diligenceValueDisplay">'+(e.diligence!=null?e.diligence:0)+'</p>';
+    html += '</div>';
 
     html += '<p class="field-label field-label-strong" style="margin-top:12px;">🙋 참여도 (최대 10)</p>';
     html += '<div class="row2">';
@@ -2754,11 +2766,11 @@
 
     html += '<div class="rule-card" style="margin:14px 0;"><div style="display:flex;justify-content:space-between;"><span>평가점수 (base)</span><b id="ev_baseDisplay">0</b></div></div>';
 
-    html += '<p class="card-title" style="margin-top:8px;">🏆 Reward (최대 50)</p>';
+    html += '<p class="field-label field-label-strong" style="margin-top:8px;">🏆 Reward (최대 50)</p>';
     html += checkboxGroupHTML(REWARD_ITEMS, 'reward', e.rewardItems);
     html += '<p class="savehint" style="font-weight:700;" id="ev_rewardTotal">Reward 합계: 0 / 50</p>';
 
-    html += '<p class="card-title" style="margin-top:14px;color:var(--brick);">🚨 Penalty (7~100)</p>';
+    html += '<p class="field-label field-label-strong" style="margin-top:14px;color:var(--brick);">🚨 Penalty (7~100)</p>';
     html += '<p class="savehint" style="margin-top:-6px;">"서비스 인적장애"를 선택하면 다른 항목은 자동으로 해제돼요.</p>';
     html += checkboxGroupHTML(PENALTY_ITEMS, 'penalty', e.penaltyItems);
     html += '<p class="savehint" style="font-weight:700;color:var(--brick);" id="ev_penaltyTotal">Penalty 합계: 0</p>';
@@ -2770,6 +2782,8 @@
     html += '<p class="savehint" style="margin-top:2px;">E+ 95↑ · E 90↑ · M+ 80↑ · M 70↑ · I 69↓ · N 평가제외</p>';
     html += '</div>';
 
+    html += '<div class="field"><span class="field-label field-label-strong">💪 강점</span><textarea id="ev_strengths" placeholder="이 직원의 강점을 남겨주세요">'+escapeHtml(e.strengths||'')+'</textarea></div>';
+    html += '<div class="field"><span class="field-label field-label-strong">📉 약점</span><textarea id="ev_weaknesses" placeholder="개선이 필요한 부분을 남겨주세요">'+escapeHtml(e.weaknesses||'')+'</textarea></div>';
     html += '<div class="field"><span class="field-label">비고</span><textarea id="ev_note" placeholder="추가로 남길 내용">'+escapeHtml(e.note||'')+'</textarea></div>';
 
     html += '<div class="row2">';
@@ -2815,6 +2829,8 @@
       var reward = sumCheckedItems(REWARD_ITEMS, rewardMap);
       var penalty = sumCheckedItems(PENALTY_ITEMS, penaltyMap);
       var achievement = parseFloat(document.getElementById('ev_achieveSlider').value) || 0;
+      var diligenceVal = parseFloat(document.getElementById('ev_diligenceSlider').value) || 0;
+      document.getElementById('ev_diligenceValueDisplay').textContent = diligenceVal;
       var achieveCondMap = currentCheckedMap('achievecond');
       var achieveCondCount = ACHIEVEMENT_CONDITIONS.filter(function(c){ return achieveCondMap[c.key]; }).length;
 
@@ -2826,7 +2842,7 @@
       document.getElementById('ev_achieveValueDisplay').textContent = achievement;
 
       var v = {
-        diligence: parseFloat(document.getElementById('ev_diligence').value) || 0,
+        diligence: parseFloat(document.getElementById('ev_diligenceSlider').value) || 0,
         workAttend: parseFloat(document.getElementById('ev_workAttend').value) || 0,
         workDinner: parseFloat(document.getElementById('ev_workDinner').value) || 0,
         workEvent: parseFloat(document.getElementById('ev_workEvent').value) || 0,
@@ -2873,6 +2889,7 @@
       this.dataset.touched = '1';
       refreshEvalTotals();
     });
+    document.getElementById('ev_diligenceSlider').addEventListener('input', refreshEvalTotals);
     var empSelect = document.getElementById('ev_employee');
     if(empSelect && !empSelect.disabled){
       empSelect.addEventListener('change', function(){
@@ -2917,7 +2934,7 @@
     var rewardItems = readCheckedMap('reward');
     var penaltyItems = readCheckedMap('penalty');
     var v = {
-      diligence: parseFloat(document.getElementById('ev_diligence').value) || 0,
+      diligence: parseFloat(document.getElementById('ev_diligenceSlider').value) || 0,
       workAttend: parseFloat(document.getElementById('ev_workAttend').value) || 0,
       workDinner: parseFloat(document.getElementById('ev_workDinner').value) || 0,
       workEvent: parseFloat(document.getElementById('ev_workEvent').value) || 0,
@@ -2935,6 +2952,8 @@
       employeeId: empEl.value,
       year: parseInt(document.getElementById('ev_year').value, 10) || new Date().getFullYear(),
       note: document.getElementById('ev_note').value.trim(),
+      strengths: document.getElementById('ev_strengths').value.trim(),
+      weaknesses: document.getElementById('ev_weaknesses').value.trim(),
       excluded: excluded,
       grade: grade,
       competencyItems: competencyItems,
@@ -3965,7 +3984,14 @@
     var body = document.getElementById('attendanceFormBody');
 
     var html = '';
-    html += '<div class="field"><span class="field-label field-label-strong">📅 날짜</span><input type="date" id="at_date" value="'+(e.date||selectedDate)+'"></div>';
+    if(!existing){
+      html += '<label class="checklist-item"><input type="checkbox" id="at_rangeMode"><span>기간으로 등록 (여러 날짜에 한번에 등록)</span></label>';
+    }
+    html += '<div id="at_dateSingleField"><div class="field"><span class="field-label field-label-strong">📅 날짜</span><input type="date" id="at_date" value="'+(e.date||selectedDate)+'"></div></div>';
+    html += '<div id="at_dateRangeField" style="display:none;"><div class="row2">';
+    html += '<div class="field"><span class="field-label field-label-strong">📅 시작일</span><input type="date" id="at_startDate" value="'+(selectedDate)+'"></div>';
+    html += '<div class="field"><span class="field-label field-label-strong">📅 종료일</span><input type="date" id="at_endDate" value="'+(selectedDate)+'"></div>';
+    html += '</div><p class="toast" id="at_rangeError"></p></div>';
 
     html += '<div class="field"><span class="field-label field-label-strong">👤 직원명</span>';
     if(employees.length === 0){
@@ -3985,7 +4011,12 @@
     });
     html += '</select></div>';
 
-    html += '<div class="field"><span class="field-label">시간</span><input type="time" id="at_time" value="'+(e.time||'')+'"></div>';
+    html += '<label class="checklist-item"><input type="checkbox" id="at_allDay"'+(e.allDay?' checked':'')+'><span>하루종일</span></label>';
+    html += '<div id="at_timeFields" class="row2" style="'+(e.allDay?'display:none;':'')+'">';
+    html += '<div class="field"><span class="field-label">시작시간</span><input type="time" id="at_startTime" value="'+(e.startTime||e.time||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">종료시간</span><input type="time" id="at_endTime" value="'+(e.endTime||'')+'"></div>';
+    html += '</div>';
+
     html += '<div class="field"><span class="field-label">내용</span><textarea id="at_content" placeholder="추가로 남길 내용">'+escapeHtml(e.content||'')+'</textarea></div>';
 
     html += '<div class="row2">';
@@ -3997,6 +4028,17 @@
     }
 
     body.innerHTML = html;
+
+    var rangeToggle = document.getElementById('at_rangeMode');
+    if(rangeToggle){
+      rangeToggle.addEventListener('change', function(){
+        document.getElementById('at_dateSingleField').style.display = this.checked ? 'none' : 'block';
+        document.getElementById('at_dateRangeField').style.display = this.checked ? 'block' : 'none';
+      });
+    }
+    document.getElementById('at_allDay').addEventListener('change', function(){
+      document.getElementById('at_timeFields').style.display = this.checked ? 'none' : 'grid';
+    });
 
     document.getElementById('at_cancelBtn').addEventListener('click', function(){ closeSheet('attendanceSheet'); });
     document.getElementById('at_saveBtn').addEventListener('click', saveAttendanceForm);
@@ -4018,22 +4060,64 @@
       return;
     }
     var now = new Date().toISOString();
-    var payload = {
-      id: editingAttendanceId || uid(),
-      type: 'attendance',
-      date: document.getElementById('at_date').value || selectedDate,
-      employeeId: empEl.value,
-      workType: document.getElementById('at_worktype').value,
-      time: document.getElementById('at_time').value,
-      content: document.getElementById('at_content').value.trim(),
-      createdAt: editingAttendanceId ? (entries.find(function(x){return x.id===editingAttendanceId;})||{}).createdAt || now : now,
-      updatedAt: now
-    };
-    if(editingAttendanceId){
-      var idx = entries.findIndex(function(x){ return x.id === editingAttendanceId; });
-      if(idx >= 0) entries[idx] = payload; else entries.push(payload);
+    var allDay = document.getElementById('at_allDay').checked;
+    var startTime = allDay ? '' : document.getElementById('at_startTime').value;
+    var endTime = allDay ? '' : document.getElementById('at_endTime').value;
+    var employeeId = empEl.value;
+    var workType = document.getElementById('at_worktype').value;
+    var content = document.getElementById('at_content').value.trim();
+
+    var rangeToggle = document.getElementById('at_rangeMode');
+    var isRange = rangeToggle && rangeToggle.checked;
+
+    if(isRange){
+      var startDateStr = document.getElementById('at_startDate').value;
+      var endDateStr = document.getElementById('at_endDate').value;
+      if(!startDateStr || !endDateStr || startDateStr > endDateStr){
+        var errEl = document.getElementById('at_rangeError');
+        errEl.style.color = 'var(--brick)';
+        errEl.textContent = '종료일이 시작일보다 빠를 수 없어요.';
+        return;
+      }
+      var d = new Date(startDateStr+'T00:00:00');
+      var endD = new Date(endDateStr+'T00:00:00');
+      while(d <= endD){
+        var dateStr = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+        entries.push({
+          id: uid(),
+          type: 'attendance',
+          date: dateStr,
+          employeeId: employeeId,
+          workType: workType,
+          allDay: allDay,
+          startTime: startTime,
+          endTime: endTime,
+          content: content,
+          createdAt: now,
+          updatedAt: now
+        });
+        d.setDate(d.getDate() + 1);
+      }
     }else{
-      entries.push(payload);
+      var payload = {
+        id: editingAttendanceId || uid(),
+        type: 'attendance',
+        date: document.getElementById('at_date').value || selectedDate,
+        employeeId: employeeId,
+        workType: workType,
+        allDay: allDay,
+        startTime: startTime,
+        endTime: endTime,
+        content: content,
+        createdAt: editingAttendanceId ? (entries.find(function(x){return x.id===editingAttendanceId;})||{}).createdAt || now : now,
+        updatedAt: now
+      };
+      if(editingAttendanceId){
+        var idx = entries.findIndex(function(x){ return x.id === editingAttendanceId; });
+        if(idx >= 0) entries[idx] = payload; else entries.push(payload);
+      }else{
+        entries.push(payload);
+      }
     }
     await saveEntries();
     closeSheet('attendanceSheet');
