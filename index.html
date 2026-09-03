@@ -28,6 +28,8 @@
     --purple-soft:#E7E1F0;
     --teal:#2E8B7C;
     --teal-soft:#D9EEEA;
+    --amber:#B8791E;
+    --amber-soft:#F0E0BE;
     --stamp:#20241D;
     --radius:10px;
   }
@@ -50,6 +52,8 @@
     --purple-soft:#2E2740;
     --teal:#5FC4B0;
     --teal-soft:#1E332F;
+    --amber:#E0AC50;
+    --amber-soft:#3D2F16;
     --stamp:#EDEBE1;
   }
   body.theme-dark .savebtn,
@@ -322,6 +326,7 @@
   .dot-overtime{ background:var(--purple); }
   .dot-welfare{ background:var(--teal); }
   .dot-task{ background:var(--pine); }
+  .dot-attendance{ background:var(--amber); }
 
   .day-detail{
     max-height:0;
@@ -354,6 +359,9 @@
   .tagbtn.task{
     grid-column:1 / -1;
   }
+  .tagbtn.attendance{
+    grid-column:1 / -1;
+  }
   .tagbtn{
     flex:1;
     padding:12px 6px;
@@ -375,6 +383,7 @@
   .tagbtn.overtime{ border-color:var(--purple); }
   .tagbtn.welfare{ border-color:var(--teal); }
   .tagbtn.task{ border-color:var(--pine); }
+  .tagbtn.attendance{ border-color:var(--amber); }
 
   .record-item{
     background:var(--paper);
@@ -401,6 +410,7 @@
   .record-badge.overtime{ background:var(--purple-soft); color:var(--purple); }
   .record-badge.welfare{ background:var(--teal-soft); color:var(--teal); }
   .record-badge.task{ background:var(--pine-soft); color:var(--pine); }
+  .record-badge.attendance{ background:var(--amber-soft); color:var(--amber); }
   .record-amt{
     font-family:'IBM Plex Mono',monospace;
     font-weight:700;
@@ -541,6 +551,30 @@
   .card-title.no-divider{ border-top:none; padding-top:0; }
   .toast{ font-size:13px; margin:8px 0 0; min-height:16px; }
   .savehint{ font-size:11.5px; color:var(--ink-faint); margin:8px 0 0; }
+  .rule-card{
+    border:1px solid var(--line);
+    background:var(--paper-raised);
+    border-radius:10px;
+    padding:14px;
+  }
+  .status-table{
+    border-collapse:collapse;
+    font-size:13px;
+  }
+  .status-table th, .status-table td{
+    padding:8px 10px;
+    text-align:left;
+    border-bottom:1px solid var(--line);
+    white-space:nowrap;
+  }
+  .status-table th{
+    color:var(--ink-faint);
+    font-weight:600;
+    font-size:12px;
+  }
+  .status-table tr:hover td{
+    background:var(--paper-raised);
+  }
   .backup-banner{
     border:1px solid var(--olive);
     background:var(--olive-soft);
@@ -846,9 +880,12 @@
   <p class="eyebrow">WORK JOURNAL · V1.0</p>
   <div class="header-row">
     <h1>💼 업무일지</h1>
-    <button class="assetbtn" id="statsOpenBtn" type="button">📊 통계</button>
+    <div style="display:flex;gap:8px;">
+      <button class="assetbtn" id="statsOpenBtn" type="button">📊 통계</button>
+      <button class="assetbtn" id="hrOpenBtn" type="button">🧑‍💼 인사관리</button>
+    </div>
   </div>
-  <p class="subtitle">출장, 경비, 야근을 한 곳에 기록해요</p>
+  <p class="subtitle">출장, 경비, 야근, 업무기록을 한 곳에 기록해요</p>
 
   <div id="backupReminderBanner" style="display:none;"></div>
   <div id="budgetWarningBanner" style="display:none;"></div>
@@ -915,6 +952,66 @@
   <div class="side-scroll-wrap">
     <div class="side-body" id="statsBody"></div>
   </div>
+</div>
+
+<div class="side-screen" id="hrScreen">
+  <div class="side-header">
+    <button class="side-back" id="hrBackBtn" type="button">‹ 뒤로</button>
+    <span class="side-title">🧑‍💼 인사관리</span>
+    <div style="display:flex;gap:6px;">
+      <button class="side-back" id="hrSettingsBtn" type="button" aria-label="직원 등록">⚙️</button>
+      <button class="side-back" id="hrEvalBtn" type="button" aria-label="인사평가">📋</button>
+    </div>
+  </div>
+  <div class="side-scroll-wrap">
+    <div class="side-body" id="hrBody"></div>
+  </div>
+</div>
+
+<div class="side-screen" id="employeeSettingsScreen">
+  <div class="side-header">
+    <button class="side-back" id="employeeSettingsBackBtn" type="button">‹ 뒤로</button>
+    <span class="side-title">👤 직원 등록</span>
+    <span style="width:44px;"></span>
+  </div>
+  <div class="side-scroll-wrap">
+    <div class="side-body" id="employeeSettingsBody"></div>
+  </div>
+</div>
+
+<div class="bottom-sheet" id="employeeFormSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">👤 직원 정보</span>
+    <button class="sheet-close" id="employeeFormCloseBtn" type="button">✕</button>
+  </div>
+  <div id="employeeFormBody"></div>
+</div>
+
+<div class="side-screen" id="evaluationScreen">
+  <div class="side-header">
+    <button class="side-back" id="evaluationBackBtn" type="button">‹ 뒤로</button>
+    <span class="side-title">📋 개인인사평가</span>
+    <span style="width:44px;"></span>
+  </div>
+  <div class="side-scroll-wrap">
+    <div class="side-body" id="evaluationBody"></div>
+  </div>
+</div>
+
+<div class="bottom-sheet" id="evaluationFormSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">📋 인사평가 등록</span>
+    <button class="sheet-close" id="evaluationFormCloseBtn" type="button">✕</button>
+  </div>
+  <div id="evaluationFormBody"></div>
+</div>
+
+<div class="bottom-sheet" id="attendanceSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">🗓️ 근무기록 등록</span>
+    <button class="sheet-close" id="attendanceCloseBtn" type="button">✕</button>
+  </div>
+  <div id="attendanceFormBody"></div>
 </div>
 
 <button class="fab-settings" id="fabSettingsBtn" type="button" aria-label="설정">⚙️</button>
@@ -1191,6 +1288,7 @@
   var sizePref = '100';
   var calendarOffset = 0;
   var selectedDate = null;
+  var dayDetailVisible = false;
   var lockResolve = null;
   var storageAvailable = true;
 
@@ -1552,6 +1650,7 @@
         if(types.overtime){ var doo=document.createElement('span'); doo.className='dot dot-overtime'; dotrow.appendChild(doo); }
         if(types.welfare){ var dw=document.createElement('span'); dw.className='dot dot-welfare'; dotrow.appendChild(dw); }
         if(types.task){ var dk=document.createElement('span'); dk.className='dot dot-task'; dotrow.appendChild(dk); }
+        if(types.attendance){ var da=document.createElement('span'); da.className='dot dot-attendance'; dotrow.appendChild(da); }
         cell.appendChild(dotrow);
 
         var iconrow = document.createElement('div');
@@ -1561,11 +1660,18 @@
         if(types.overtime){ var io=document.createElement('span'); io.textContent=TYPE_META.overtime.icon; iconrow.appendChild(io); }
         if(types.welfare){ var iw=document.createElement('span'); iw.textContent=TYPE_META.welfare.icon; iconrow.appendChild(iw); }
         if(types.task){ var ik=document.createElement('span'); ik.textContent=TYPE_META.task.icon; iconrow.appendChild(ik); }
+        if(types.attendance){ var ia=document.createElement('span'); ia.textContent=TYPE_META.attendance.icon; iconrow.appendChild(ia); }
         cell.appendChild(iconrow);
       }
       cell.addEventListener('click', function(){
         var ds = this.getAttribute('data-date');
-        selectedDate = (selectedDate === ds) ? null : ds;
+        if(selectedDate === ds && dayDetailVisible){
+          selectedDate = null;
+          dayDetailVisible = false;
+        }else{
+          selectedDate = ds;
+          dayDetailVisible = true;
+        }
         renderCalendar();
         renderDayDetail();
       });
@@ -1583,7 +1689,8 @@
     expense: { icon:'💳', label:'경비' },
     overtime: { icon:'🌙', label:'야근' },
     welfare: { icon:'🎁', label:'복지비' },
-    task: { icon:'📝', label:'업무' }
+    task: { icon:'📝', label:'업무' },
+    attendance: { icon:'🗓️', label:'근무기록' }
   };
 
   function niceDate(dateStr){
@@ -1599,7 +1706,7 @@
   function renderDayDetail(){
     var panel = document.getElementById('dayDetail');
     var inner = document.getElementById('dayDetailInner');
-    if(!selectedDate){
+    if(!selectedDate || !dayDetailVisible){
       panel.classList.remove('open');
       inner.innerHTML = '';
       return;
@@ -1616,6 +1723,7 @@
     html += '<button class="tagbtn overtime" id="addOvertimeBtn" type="button"><span class="tagicon">🌙</span>야근</button>';
     html += '<button class="tagbtn welfare" id="addWelfareBtn" type="button"><span class="tagicon">🎁</span>복지비</button>';
     html += '<button class="tagbtn task" id="addTaskBtn" type="button"><span class="tagicon">📝</span>업무</button>';
+    html += '<button class="tagbtn attendance" id="addAttendanceBtn" type="button"><span class="tagicon">🗓️</span>근무기록</button>';
     html += '</div>';
 
     var dayEntries = entriesForDate(selectedDate).slice().sort(function(a,b){
@@ -1631,7 +1739,7 @@
         html += '<div class="record-item">';
         html += '<div class="record-top">';
         html += '<span class="record-badge '+e.type+'">'+meta.icon+' '+meta.label+'</span>';
-        if(e.type !== 'task'){
+        if(e.type !== 'task' && e.type !== 'attendance'){
           html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
         }
         html += '</div>';
@@ -1660,6 +1768,7 @@
     document.getElementById('addOvertimeBtn').addEventListener('click', function(){ openOvertimeForm(null); });
     document.getElementById('addWelfareBtn').addEventListener('click', function(){ openWelfareForm(null); });
     document.getElementById('addTaskBtn').addEventListener('click', function(){ openTaskForm(null); });
+    document.getElementById('addAttendanceBtn').addEventListener('click', function(){ openAttendanceForm(null); });
     inner.querySelectorAll('[data-receipt-view]').forEach(function(img){
       img.addEventListener('click', function(){
         var id = img.getAttribute('data-receipt-view');
@@ -1678,6 +1787,7 @@
         else if(e.type === 'expense') openExpenseForm(e);
         else if(e.type === 'welfare') openWelfareForm(e);
         else if(e.type === 'task') openTaskForm(e);
+        else if(e.type === 'attendance') openAttendanceForm(e);
         else openOvertimeForm(e);
       });
     });
@@ -1751,6 +1861,15 @@
     }
     if(e.type === 'task'){
       return escapeHtml((e.content||'').slice(0,60));
+    }
+    if(e.type === 'attendance'){
+      var emp = employees.find(function(x){ return x.id === e.employeeId; });
+      var parts5 = [];
+      if(emp) parts5.push(emp.name);
+      if(e.workType) parts5.push(e.workType);
+      if(e.time) parts5.push(e.time);
+      if(e.content) parts5.push(e.content.slice(0,30));
+      return escapeHtml(parts5.join(' · ') || '근무기록');
     }
     return '';
   }
@@ -2221,6 +2340,360 @@
     }
     try{ localStorage.setItem(CARDS_LOCAL_KEY, JSON.stringify(paymentCards)); }catch(e){}
   }
+
+  // ---------- 인사관리: 직원 ----------
+  var EMPLOYEES_KEY = 'workjournal:employees';
+  var EMPLOYEES_LOCAL_KEY = 'work_journal_employees_v1';
+  var employees = []; // [{id, name, company, department, project, position, hireDate, resignDate, leaveDate, returnDate, workLocation}]
+  var EMPLOYEE_POSITIONS = ['사원','대리','과장','차장','부장/파트장'];
+  var EVALUATIONS_KEY = 'workjournal:evaluations';
+  var EVALUATIONS_LOCAL_KEY = 'work_journal_evaluations_v1';
+  var evaluations = []; // [{id, employeeId, year, diligence, workAttend, workDinner, workEvent, competency, achievement, selfdev, baseScore, reward, penalty, finalScore, note, createdAt, updatedAt}]
+  async function loadEvaluations(){
+    if(hasClaudeStorage()){
+      try{
+        var res = await window.storage.get(EVALUATIONS_KEY, false);
+        if(res && res.value) return JSON.parse(res.value);
+        return [];
+      }catch(e){ return []; }
+    }
+    try{
+      var raw = localStorage.getItem(EVALUATIONS_LOCAL_KEY);
+      return raw ? JSON.parse(raw) : [];
+    }catch(e){ return []; }
+  }
+  async function saveEvaluations(){
+    if(hasClaudeStorage()){
+      try{ await window.storage.set(EVALUATIONS_KEY, JSON.stringify(evaluations), false); }catch(e){}
+      return;
+    }
+    try{ localStorage.setItem(EVALUATIONS_LOCAL_KEY, JSON.stringify(evaluations)); }catch(e){}
+  }
+
+  function renderEmployeeSettingsScreen(){
+    var body = document.getElementById('employeeSettingsBody');
+    var html = '';
+    html += '<button class="savebtn" id="addEmployeeBtn" type="button" style="width:100%;margin-bottom:16px;">+ 새 직원 등록</button>';
+    if(employees.length === 0){
+      html += '<p class="empty-inline">등록된 직원이 없어요.</p>';
+    }else{
+      employees.forEach(function(emp){
+        html += '<div class="record-item">';
+        html += '<div class="record-top"><span class="record-badge" style="background:var(--amber-soft);color:var(--amber);">👤 '+escapeHtml(emp.name)+'</span>';
+        html += '<span style="font-size:12px;color:var(--ink-faint);">'+escapeHtml(emp.position||'')+'</span></div>';
+        html += '<p class="record-sub">'+escapeHtml([emp.company,emp.department,emp.project].filter(Boolean).join(' · ')||'-')+'</p>';
+        html += '<div class="record-actions">';
+        html += '<button class="cancelbtn" data-emp-edit="'+emp.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">수정</button>';
+        html += '<button class="danger" data-emp-del="'+emp.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">삭제</button>';
+        html += '</div></div>';
+      });
+    }
+    body.innerHTML = html;
+    document.getElementById('addEmployeeBtn').addEventListener('click', function(){ openEmployeeForm(null); });
+    body.querySelectorAll('[data-emp-edit]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var emp = employees.find(function(x){ return x.id === btn.getAttribute('data-emp-edit'); });
+        if(emp) openEmployeeForm(emp);
+      });
+    });
+    body.querySelectorAll('[data-emp-del]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        var id = btn.getAttribute('data-emp-del');
+        employees = employees.filter(function(x){ return x.id !== id; });
+        await saveEmployees();
+        renderEmployeeSettingsScreen();
+      });
+    });
+  }
+
+  var editingEmployeeId = null;
+  function openEmployeeForm(existing){
+    editingEmployeeId = existing ? existing.id : null;
+    var e = existing || {};
+    var body = document.getElementById('employeeFormBody');
+    var html = '';
+    html += '<div class="field"><span class="field-label field-label-strong">👤 직원명</span><input type="text" id="emp_name" placeholder="예: 홍길동" value="'+escapeHtml(e.name||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">회사명</span><input type="text" id="emp_company" value="'+escapeHtml(e.company||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">부서명</span><input type="text" id="emp_department" value="'+escapeHtml(e.department||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">프로젝트</span><input type="text" id="emp_project" value="'+escapeHtml(e.project||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">직급</span><select id="emp_position">';
+    EMPLOYEE_POSITIONS.forEach(function(p){
+      html += '<option value="'+p+'"'+(e.position===p?' selected':'')+'>'+p+'</option>';
+    });
+    html += '</select></div>';
+    html += '<div class="row2"><div class="field"><span class="field-label">입사일</span><input type="date" id="emp_hireDate" value="'+(e.hireDate||'')+'"></div><div class="field"><span class="field-label">퇴사일</span><input type="date" id="emp_resignDate" value="'+(e.resignDate||'')+'"></div></div>';
+    html += '<div class="row2"><div class="field"><span class="field-label">휴직일</span><input type="date" id="emp_leaveDate" value="'+(e.leaveDate||'')+'"></div><div class="field"><span class="field-label">복직일</span><input type="date" id="emp_returnDate" value="'+(e.returnDate||'')+'"></div></div>';
+    html += '<div class="field"><span class="field-label">근무지</span><input type="text" id="emp_workLocation" value="'+escapeHtml(e.workLocation||'')+'"></div>';
+    html += '<div class="row2">';
+    html += '<button class="cancelbtn" id="emp_cancelBtn" type="button">취소</button>';
+    html += '<button class="savebtn" id="emp_saveBtn" type="button">'+(existing?'수정 저장':'직원 등록')+'</button>';
+    html += '</div>';
+    if(existing){
+      html += '<button class="danger" id="emp_deleteBtn" type="button" style="width:100%;margin-top:10px;">이 직원 삭제</button>';
+    }
+    body.innerHTML = html;
+    document.getElementById('emp_cancelBtn').addEventListener('click', function(){ closeSheet('employeeFormSheet'); });
+    document.getElementById('emp_saveBtn').addEventListener('click', saveEmployeeForm);
+    var delBtn = document.getElementById('emp_deleteBtn');
+    if(delBtn){
+      delBtn.addEventListener('click', async function(){
+        employees = employees.filter(function(x){ return x.id !== editingEmployeeId; });
+        await saveEmployees();
+        closeSheet('employeeFormSheet');
+        renderEmployeeSettingsScreen();
+      });
+    }
+    openSheet('employeeFormSheet');
+  }
+  async function saveEmployeeForm(){
+    var name = document.getElementById('emp_name').value.trim();
+    if(!name){
+      document.getElementById('emp_name').focus();
+      return;
+    }
+    var payload = {
+      id: editingEmployeeId || uid(),
+      name: name,
+      company: document.getElementById('emp_company').value.trim(),
+      department: document.getElementById('emp_department').value.trim(),
+      project: document.getElementById('emp_project').value.trim(),
+      position: document.getElementById('emp_position').value,
+      hireDate: document.getElementById('emp_hireDate').value,
+      resignDate: document.getElementById('emp_resignDate').value,
+      leaveDate: document.getElementById('emp_leaveDate').value,
+      returnDate: document.getElementById('emp_returnDate').value,
+      workLocation: document.getElementById('emp_workLocation').value.trim()
+    };
+    if(editingEmployeeId){
+      var idx = employees.findIndex(function(x){ return x.id === editingEmployeeId; });
+      if(idx >= 0) employees[idx] = payload; else employees.push(payload);
+    }else{
+      employees.push(payload);
+    }
+    await saveEmployees();
+    closeSheet('employeeFormSheet');
+    renderEmployeeSettingsScreen();
+  }
+
+  // ---------- 개인인사평가 ----------
+  function computeEvalScores(v){
+    var participation = (v.workAttend||0) + (v.workDinner||0) + (v.workEvent||0);
+    var base = (v.diligence||0) + participation + (v.competency||0) + (v.achievement||0) + (v.selfdev||0);
+    var final = base + (v.reward||0) - (v.penalty||0);
+    return { participation:participation, base:base, final:final };
+  }
+  var editingEvaluationId = null;
+  function openEvaluationForm(existing){
+    editingEvaluationId = existing ? existing.id : null;
+    var e = existing || { year:new Date().getFullYear(), workAttend:2.5, workDinner:1.5, workEvent:1 };
+    var body = document.getElementById('evaluationFormBody');
+
+    var html = '';
+    html += '<div class="field"><span class="field-label field-label-strong">👤 직원</span>';
+    if(employees.length === 0){
+      html += '<select id="ev_employee" disabled><option>등록된 직원이 없어요 (인사관리 &gt; ⚙️에서 등록)</option></select>';
+    }else{
+      html += '<select id="ev_employee">';
+      employees.forEach(function(emp){
+        html += '<option value="'+emp.id+'"'+(e.employeeId===emp.id?' selected':'')+'>'+escapeHtml(emp.name)+(emp.position?' ('+emp.position+')':'')+'</option>';
+      });
+      html += '</select>';
+    }
+    html += '</div>';
+    html += '<div class="field"><span class="field-label">평가연도</span><input type="number" id="ev_year" value="'+(e.year||new Date().getFullYear())+'"></div>';
+
+    html += '<p class="card-title" style="margin-top:20px;">📊 평가 기준표 (100점)</p>';
+    html += '<div class="field"><span class="field-label">🏃 성실도 (최대 10) — 근태·태도(적극성·능동적·납기준수·보고 등)</span><input type="number" step="0.5" min="0" max="10" class="ev-score" id="ev_diligence" value="'+(e.diligence!=null?e.diligence:0)+'"></div>';
+
+    html += '<p class="field-label field-label-strong" style="margin-top:12px;">🙋 참여도 (최대 10)</p>';
+    html += '<div class="row2">';
+    html += '<div class="field"><span class="field-label">작업(5)</span><input type="number" step="0.5" min="0" max="5" class="ev-score" id="ev_workAttend" value="'+(e.workAttend!=null?e.workAttend:2.5)+'"></div>';
+    html += '<div class="field"><span class="field-label">회식(3)</span><input type="number" step="0.5" min="0" max="3" class="ev-score" id="ev_workDinner" value="'+(e.workDinner!=null?e.workDinner:1.5)+'"></div>';
+    html += '</div>';
+    html += '<div class="field"><span class="field-label">행사(2)</span><input type="number" step="0.5" min="0" max="2" class="ev-score" id="ev_workEvent" value="'+(e.workEvent!=null?e.workEvent:1)+'"></div>';
+
+    html += '<div class="field" style="margin-top:12px;"><span class="field-label">🧠 업무역량 (최대 35) — 업무지식·응용력·리더십·소통과 협업</span><input type="number" step="0.5" min="0" max="35" class="ev-score" id="ev_competency" value="'+(e.competency!=null?e.competency:0)+'"></div>';
+
+    html += '<div class="field"><span class="field-label">🎯 성과달성 (최대 35) — 부서/팀 목표 기여 (과업달성 95%+, 무장애 1등급, SLA 4.5+)<br>직급별 평균: 사원 5 · 대리 15 · 과장 22.5 · 차장 27.5 · 부장/파트장 32.5</span><input type="number" step="0.5" min="0" max="35" class="ev-score" id="ev_achievement" value="'+(e.achievement!=null?e.achievement:0)+'"></div>';
+
+    html += '<div class="field"><span class="field-label">🌱 자기계발 (최대 10) — 자격증(3)·교육(3)·세미나(3)·학위(1)</span><input type="number" step="0.5" min="0" max="10" class="ev-score" id="ev_selfdev" value="'+(e.selfdev!=null?e.selfdev:0)+'"></div>';
+
+    html += '<div class="rule-card" style="margin:14px 0;"><div style="display:flex;justify-content:space-between;"><span>평가점수 (base)</span><b id="ev_baseDisplay">0</b></div></div>';
+
+    html += '<p class="card-title" style="margin-top:8px;">🏆 Reward / Penalty</p>';
+    html += '<div class="field"><span class="field-label">Reward (최대 50) — 제안서·목표기여·과업달성·프로세스담당·협업·양성리더십·업무개선·장비사업기여 각5, 파트장직무10</span><input type="number" step="1" min="0" max="50" class="ev-score" id="ev_reward" value="'+(e.reward!=null?e.reward:0)+'"></div>';
+    html += '<div class="field"><span class="field-label">Penalty (7~100) — 인적장애100·근무태만30·태도10·지각7·업무미숙20·제출기한미준수10·서식오기2</span><input type="number" step="1" min="0" max="100" class="ev-score" id="ev_penalty" value="'+(e.penalty!=null?e.penalty:0)+'"></div>';
+
+    html += '<div class="verdict-box" style="margin:16px 0;"><p class="verdict-pct" style="font-weight:700;">최종점수</p><p class="verdict-label" id="ev_finalDisplay" style="color:var(--amber);">0</p></div>';
+
+    html += '<div class="field"><span class="field-label">비고</span><textarea id="ev_note" placeholder="추가로 남길 내용">'+escapeHtml(e.note||'')+'</textarea></div>';
+
+    html += '<div class="row2">';
+    html += '<button class="cancelbtn" id="ev_cancelBtn" type="button">취소</button>';
+    html += '<button class="savebtn" id="ev_saveBtn" type="button">'+(existing?'수정 저장':'평가 저장')+'</button>';
+    html += '</div>';
+    if(existing){
+      html += '<button class="danger" id="ev_deleteBtn" type="button" style="width:100%;margin-top:10px;">이 평가 삭제</button>';
+    }
+
+    body.innerHTML = html;
+
+    function refreshEvalTotals(){
+      var v = {
+        diligence: parseFloat(document.getElementById('ev_diligence').value) || 0,
+        workAttend: parseFloat(document.getElementById('ev_workAttend').value) || 0,
+        workDinner: parseFloat(document.getElementById('ev_workDinner').value) || 0,
+        workEvent: parseFloat(document.getElementById('ev_workEvent').value) || 0,
+        competency: parseFloat(document.getElementById('ev_competency').value) || 0,
+        achievement: parseFloat(document.getElementById('ev_achievement').value) || 0,
+        selfdev: parseFloat(document.getElementById('ev_selfdev').value) || 0,
+        reward: parseFloat(document.getElementById('ev_reward').value) || 0,
+        penalty: parseFloat(document.getElementById('ev_penalty').value) || 0
+      };
+      var s = computeEvalScores(v);
+      document.getElementById('ev_baseDisplay').textContent = s.base.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1') + ' / 100';
+      document.getElementById('ev_finalDisplay').textContent = s.final.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1');
+    }
+    document.querySelectorAll('.ev-score').forEach(function(inp){
+      inp.addEventListener('input', refreshEvalTotals);
+    });
+    refreshEvalTotals();
+
+    document.getElementById('ev_cancelBtn').addEventListener('click', function(){ closeSheet('evaluationFormSheet'); });
+    document.getElementById('ev_saveBtn').addEventListener('click', saveEvaluationForm);
+    var delBtn = document.getElementById('ev_deleteBtn');
+    if(delBtn){
+      delBtn.addEventListener('click', async function(){
+        evaluations = evaluations.filter(function(x){ return x.id !== editingEvaluationId; });
+        await saveEvaluations();
+        closeSheet('evaluationFormSheet');
+        renderEvaluationScreen();
+      });
+    }
+    openSheet('evaluationFormSheet');
+  }
+  async function saveEvaluationForm(){
+    var empEl = document.getElementById('ev_employee');
+    if(!empEl || empEl.disabled){
+      empEl && empEl.focus();
+      return;
+    }
+    var now = new Date().toISOString();
+    var v = {
+      diligence: parseFloat(document.getElementById('ev_diligence').value) || 0,
+      workAttend: parseFloat(document.getElementById('ev_workAttend').value) || 0,
+      workDinner: parseFloat(document.getElementById('ev_workDinner').value) || 0,
+      workEvent: parseFloat(document.getElementById('ev_workEvent').value) || 0,
+      competency: parseFloat(document.getElementById('ev_competency').value) || 0,
+      achievement: parseFloat(document.getElementById('ev_achievement').value) || 0,
+      selfdev: parseFloat(document.getElementById('ev_selfdev').value) || 0,
+      reward: parseFloat(document.getElementById('ev_reward').value) || 0,
+      penalty: parseFloat(document.getElementById('ev_penalty').value) || 0
+    };
+    var s = computeEvalScores(v);
+    var payload = Object.assign({
+      id: editingEvaluationId || uid(),
+      employeeId: empEl.value,
+      year: parseInt(document.getElementById('ev_year').value, 10) || new Date().getFullYear(),
+      note: document.getElementById('ev_note').value.trim(),
+      baseScore: s.base,
+      finalScore: s.final,
+      createdAt: editingEvaluationId ? (evaluations.find(function(x){return x.id===editingEvaluationId;})||{}).createdAt || now : now,
+      updatedAt: now
+    }, v);
+    if(editingEvaluationId){
+      var idx = evaluations.findIndex(function(x){ return x.id === editingEvaluationId; });
+      if(idx >= 0) evaluations[idx] = payload; else evaluations.push(payload);
+    }else{
+      evaluations.push(payload);
+    }
+    await saveEvaluations();
+    closeSheet('evaluationFormSheet');
+    renderEvaluationScreen();
+  }
+  var evalYearFilter = 'all';
+  function renderEvaluationScreen(){
+    var body = document.getElementById('evaluationBody');
+    var html = '';
+    html += '<button class="savebtn" id="addEvaluationBtn" type="button" style="width:100%;margin-bottom:16px;">+ 새로 만들기</button>';
+
+    var years = Array.from(new Set(evaluations.map(function(e){ return e.year; }))).sort(function(a,b){ return b-a; });
+    if(years.length > 0){
+      html += '<div class="chiprow" id="evalYearChips" style="margin-bottom:16px;">';
+      html += '<button class="chip'+(evalYearFilter==='all'?' selected':'')+'" data-val="all" type="button">전체</button>';
+      years.forEach(function(y){
+        html += '<button class="chip'+(evalYearFilter===y?' selected':'')+'" data-val="'+y+'" type="button">'+y+'년</button>';
+      });
+      html += '</div>';
+    }
+
+    var filteredEvals = evalYearFilter === 'all' ? evaluations : evaluations.filter(function(e){ return e.year === evalYearFilter; });
+    var sorted = filteredEvals.slice().sort(function(a,b){ return b.finalScore - a.finalScore; });
+    if(sorted.length === 0){
+      html += '<p class="empty-inline">등록된 평가가 없어요.</p>';
+    }else{
+      html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:520px;">';
+      html += '<thead><tr><th>순위</th><th>평가연도</th><th>소속</th><th>이름</th><th>업무</th><th>최종점수</th></tr></thead><tbody>';
+      sorted.forEach(function(ev, idx){
+        var emp = employees.find(function(x){ return x.id === ev.employeeId; });
+        html += '<tr data-eval-row="'+ev.id+'" style="cursor:pointer;">';
+        html += '<td>'+(idx+1)+'</td>';
+        html += '<td>'+ev.year+'년</td>';
+        html += '<td>'+(emp?escapeHtml(emp.department||emp.company||'-'):'-')+'</td>';
+        html += '<td>'+(emp?escapeHtml(emp.name):'(삭제된 직원)')+'</td>';
+        html += '<td>'+(emp?escapeHtml(emp.project||emp.workLocation||'-'):'-')+'</td>';
+        html += '<td style="font-weight:700;">'+ev.finalScore.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1')+'</td>';
+        html += '</tr>';
+      });
+      html += '</tbody></table></div>';
+      html += '<p class="savehint">개수 '+sorted.length+'</p>';
+    }
+
+    body.innerHTML = html;
+    document.getElementById('addEvaluationBtn').addEventListener('click', function(){ openEvaluationForm(null); });
+    var yearChipsEl = document.getElementById('evalYearChips');
+    if(yearChipsEl){
+      yearChipsEl.querySelectorAll('.chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          var v = c.getAttribute('data-val');
+          evalYearFilter = (v === 'all') ? 'all' : parseInt(v, 10);
+          renderEvaluationScreen();
+        });
+      });
+    }
+    body.querySelectorAll('[data-eval-row]').forEach(function(row){
+      row.addEventListener('click', function(){
+        var ev = evaluations.find(function(x){ return x.id === row.getAttribute('data-eval-row'); });
+        if(ev) openEvaluationForm(ev);
+      });
+    });
+  }
+  async function loadEmployees(){
+    if(hasClaudeStorage()){
+      try{
+        var res = await window.storage.get(EMPLOYEES_KEY, false);
+        if(res && res.value) return JSON.parse(res.value);
+        return [];
+      }catch(e){ return []; }
+    }
+    try{
+      var raw = localStorage.getItem(EMPLOYEES_LOCAL_KEY);
+      return raw ? JSON.parse(raw) : [];
+    }catch(e){ return []; }
+  }
+  async function saveEmployees(){
+    if(hasClaudeStorage()){
+      try{ await window.storage.set(EMPLOYEES_KEY, JSON.stringify(employees), false); }catch(e){}
+      return;
+    }
+    try{ localStorage.setItem(EMPLOYEES_LOCAL_KEY, JSON.stringify(employees)); }catch(e){}
+  }
+  var ATTENDANCE_TYPES = ['휴가','출장','야근','주말근무','심야근무','출근','퇴근','교육'];
+  var ATTENDANCE_TYPE_COLOR = {
+    '휴가':'var(--teal)', '출장':'var(--blue)', '야근':'var(--purple)', '주말근무':'#c97a3d',
+    '심야근무':'var(--brick)', '출근':'var(--pine)', '퇴근':'var(--olive)', '교육':'#8a5fb0'
+  };
+
   async function loadOvertimePresets(){
     if(hasClaudeStorage()){
       try{
@@ -3045,6 +3518,89 @@
     refreshAfterSave();
   }
 
+  // ---------- Attendance (근무기록) form ----------
+  var editingAttendanceId = null;
+  function openAttendanceForm(existing){
+    editingAttendanceId = existing ? existing.id : null;
+    var e = existing || {};
+    var body = document.getElementById('attendanceFormBody');
+
+    var html = '';
+    html += '<div class="field"><span class="field-label field-label-strong">📅 날짜</span><input type="date" id="at_date" value="'+(e.date||selectedDate)+'"></div>';
+
+    html += '<div class="field"><span class="field-label field-label-strong">👤 직원명</span>';
+    if(employees.length === 0){
+      html += '<select id="at_employee" disabled><option>등록된 직원이 없어요 (인사관리 &gt; ⚙️에서 등록)</option></select>';
+    }else{
+      html += '<select id="at_employee">';
+      employees.forEach(function(emp){
+        html += '<option value="'+emp.id+'"'+(e.employeeId===emp.id?' selected':'')+'>'+escapeHtml(emp.name)+'</option>';
+      });
+      html += '</select>';
+    }
+    html += '</div>';
+
+    html += '<div class="field"><span class="field-label field-label-strong">🏷️ 근무형태</span><select id="at_worktype">';
+    ATTENDANCE_TYPES.forEach(function(t){
+      html += '<option value="'+t+'"'+(e.workType===t?' selected':'')+'>'+t+'</option>';
+    });
+    html += '</select></div>';
+
+    html += '<div class="field"><span class="field-label">시간</span><input type="time" id="at_time" value="'+(e.time||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">내용</span><textarea id="at_content" placeholder="추가로 남길 내용">'+escapeHtml(e.content||'')+'</textarea></div>';
+
+    html += '<div class="row2">';
+    html += '<button class="cancelbtn" id="at_cancelBtn" type="button">취소</button>';
+    html += '<button class="savebtn" id="at_saveBtn" type="button">'+(existing?'수정 저장':'근무기록 저장')+'</button>';
+    html += '</div>';
+    if(existing){
+      html += '<button class="danger" id="at_deleteBtn" type="button" style="width:100%;margin-top:10px;">이 기록 삭제</button>';
+    }
+
+    body.innerHTML = html;
+
+    document.getElementById('at_cancelBtn').addEventListener('click', function(){ closeSheet('attendanceSheet'); });
+    document.getElementById('at_saveBtn').addEventListener('click', saveAttendanceForm);
+    var atDelBtn = document.getElementById('at_deleteBtn');
+    if(atDelBtn){
+      atDelBtn.addEventListener('click', async function(){
+        entries = entries.filter(function(x){ return x.id !== editingAttendanceId; });
+        await saveEntries();
+        closeSheet('attendanceSheet');
+        refreshAfterSave();
+      });
+    }
+    openSheet('attendanceSheet');
+  }
+  async function saveAttendanceForm(){
+    var empEl = document.getElementById('at_employee');
+    if(!empEl || empEl.disabled){
+      empEl && empEl.focus();
+      return;
+    }
+    var now = new Date().toISOString();
+    var payload = {
+      id: editingAttendanceId || uid(),
+      type: 'attendance',
+      date: document.getElementById('at_date').value || selectedDate,
+      employeeId: empEl.value,
+      workType: document.getElementById('at_worktype').value,
+      time: document.getElementById('at_time').value,
+      content: document.getElementById('at_content').value.trim(),
+      createdAt: editingAttendanceId ? (entries.find(function(x){return x.id===editingAttendanceId;})||{}).createdAt || now : now,
+      updatedAt: now
+    };
+    if(editingAttendanceId){
+      var idx = entries.findIndex(function(x){ return x.id === editingAttendanceId; });
+      if(idx >= 0) entries[idx] = payload; else entries.push(payload);
+    }else{
+      entries.push(payload);
+    }
+    await saveEntries();
+    closeSheet('attendanceSheet');
+    refreshAfterSave();
+  }
+
   // ---------- Welfare form ----------
   var editingWelfareId = null;
 
@@ -3256,7 +3812,7 @@
     datePickerMode = mode || 'calendar';
     var now = new Date();
     var baseDate;
-    if(datePickerMode === 'stats' || datePickerMode === 'statsyear'){
+    if(datePickerMode === 'stats' || datePickerMode === 'statsyear' || datePickerMode === 'hrmonth' || datePickerMode === 'hryear'){
       baseDate = new Date(statsSpecificYear, statsSpecificMonth, 1);
     }else{
       baseDate = new Date(now.getFullYear(), now.getMonth() + calendarOffset, 1);
@@ -3270,7 +3826,7 @@
     var grid = document.getElementById('monthPickerGrid');
     grid.innerHTML = '';
 
-    if(datePickerMode === 'statsyear'){
+    if(datePickerMode === 'statsyear' || datePickerMode === 'hryear'){
       var confirmBtn = document.createElement('button');
       confirmBtn.className = 'savebtn';
       confirmBtn.type = 'button';
@@ -3279,10 +3835,16 @@
       confirmBtn.textContent = pickerYear + '년 선택';
       confirmBtn.addEventListener('click', function(){
         statsSpecificYear = pickerYear;
-        statsPeriodMode = 'specificyear';
-        statsPage = 1;
-        closeSheet('datePickerSheet');
-        renderStatsScreen();
+        if(datePickerMode === 'hryear'){
+          hrPeriodMode = 'specificyear';
+          closeSheet('datePickerSheet');
+          renderHrScreen();
+        }else{
+          statsPeriodMode = 'specificyear';
+          statsPage = 1;
+          closeSheet('datePickerSheet');
+          renderStatsScreen();
+        }
       });
       grid.appendChild(confirmBtn);
       return;
@@ -3294,7 +3856,7 @@
       var isFuture = (pickerYear > now.getFullYear()) || (pickerYear === now.getFullYear() && m > now.getMonth());
       var cls = ['month-cell'];
       if(isFuture) cls.push('future');
-      var isActiveYear = (datePickerMode === 'stats')
+      var isActiveYear = (datePickerMode === 'stats' || datePickerMode === 'hrmonth')
         ? (pickerYear === statsSpecificYear)
         : (pickerYear === (new Date(now.getFullYear(), now.getMonth()+calendarOffset,1)).getFullYear());
       if(activeMonth === m && isActiveYear) cls.push('active');
@@ -3310,6 +3872,12 @@
               statsPage = 1;
               closeSheet('datePickerSheet');
               renderStatsScreen();
+            }else if(datePickerMode === 'hrmonth'){
+              statsSpecificYear = pickerYear;
+              statsSpecificMonth = mm;
+              hrPeriodMode = 'specificmonth';
+              closeSheet('datePickerSheet');
+              renderHrScreen();
             }else{
               calendarOffset = (pickerYear - now.getFullYear())*12 + (mm - now.getMonth());
               selectedDate = null;
@@ -3417,6 +3985,8 @@
 
   // ---------- Statistics ----------
   var statsPeriodMode = 'all';
+  var hrPeriodMode = 'month';
+  var hrTypeMode = 'all';
   var statsTypeMode = 'all';
   var statsPage = 1;
   var statsExpenseTypeFilter = '';
@@ -3441,6 +4011,9 @@
     }
     if(mode === 'month'){
       return { start: dstr(new Date(y,m,1)), end: dstr(new Date(y,m+1,0)) };
+    }
+    if(mode === 'lastmonth'){
+      return { start: dstr(new Date(y,m-1,1)), end: dstr(new Date(y,m,0)) };
     }
     if(mode === 'quarter'){
       var q = Math.floor(m/3);
@@ -3524,6 +4097,7 @@
   function statsFilteredEntries(){
     var range = getPeriodRange(statsPeriodMode);
     return entries.filter(function(e){
+      if(e.type === 'attendance') return false;
       if(statsTypeMode !== 'all' && e.type !== statsTypeMode) return false;
       if(statsTypeMode === 'expense' && statsExpenseTypeFilter && e.expenseType !== statsExpenseTypeFilter) return false;
       if(statsTypeMode === 'welfare' && statsWelfareTypeFilter && e.welfareType !== statsWelfareTypeFilter) return false;
@@ -3605,6 +4179,123 @@
     }
     html += '</div>';
     return html;
+  }
+
+  function hrFilteredEntries(){
+    var range = getPeriodRange(hrPeriodMode);
+    return entries.filter(function(e){
+      if(e.type !== 'attendance') return false;
+      if(hrTypeMode !== 'all' && e.workType !== hrTypeMode) return false;
+      if(range && (e.date < range.start || e.date > range.end)) return false;
+      return true;
+    });
+  }
+  function renderHrScreen(){
+    var body = document.getElementById('hrBody');
+    var filtered = hrFilteredEntries();
+
+    var html = '';
+    html += '<p class="field-label field-label-strong">📅 기간</p>';
+    html += '<div class="chiprow" id="hrPeriodChips" style="margin-bottom:16px;">';
+    [['lastweek','전주'],['week','이번주'],['lastmonth','전달'],['month','이번달'],['quarter','분기'],['half','반기']].forEach(function(p){
+      html += '<button class="chip'+(hrPeriodMode===p[0]?' selected':'')+'" data-val="'+p[0]+'" type="button">'+p[1]+'</button>';
+    });
+    var monthPickLabel = (hrPeriodMode === 'specificmonth') ? ('📅 '+statsSpecificYear+'.'+(statsSpecificMonth+1)) : '📅 월 선택';
+    html += '<button class="chip'+(hrPeriodMode==='specificmonth'?' selected':'')+'" id="hrMonthPickBtn" type="button">'+monthPickLabel+'</button>';
+    var yearPickLabel = (hrPeriodMode === 'specificyear') ? ('🗓️ '+statsSpecificYear+'년') : '🗓️ 연도 선택';
+    html += '<button class="chip'+(hrPeriodMode==='specificyear'?' selected':'')+'" id="hrYearPickBtn" type="button">'+yearPickLabel+'</button>';
+    html += '</div>';
+
+    html += '<p class="field-label field-label-strong">🏷️ 유형</p>';
+    html += '<div class="chiprow" id="hrTypeChips" style="margin-bottom:20px;">';
+    html += '<button class="chip'+(hrTypeMode==='all'?' selected':'')+'" data-val="all" type="button">전체</button>';
+    ATTENDANCE_TYPES.forEach(function(t){
+      html += '<button class="chip'+(hrTypeMode===t?' selected':'')+'" data-val="'+t+'" type="button">'+t+'</button>';
+    });
+    html += '</div>';
+
+    var typeCounts = {};
+    ATTENDANCE_TYPES.forEach(function(t){ typeCounts[t] = 0; });
+    filtered.forEach(function(e){
+      if(typeCounts[e.workType] != null) typeCounts[e.workType]++;
+    });
+    var total = filtered.length;
+
+    html += '<div class="rule-card" style="margin-bottom:20px;">';
+    if(total === 0){
+      html += '<p class="empty-inline">이 기간엔 근무기록이 없어요.</p>';
+    }else{
+      var gradientParts = [];
+      var cumPct = 0;
+      ATTENDANCE_TYPES.forEach(function(t){
+        if(typeCounts[t] === 0) return;
+        var pct = typeCounts[t] / total * 100;
+        gradientParts.push(ATTENDANCE_TYPE_COLOR[t] + ' ' + cumPct + '% ' + (cumPct+pct) + '%');
+        cumPct += pct;
+      });
+      html += '<div style="display:flex;justify-content:center;margin-bottom:16px;">';
+      html += '<div style="width:160px;height:160px;border-radius:50%;background:conic-gradient('+gradientParts.join(', ')+');display:flex;align-items:center;justify-content:center;">';
+      html += '<div style="width:100px;height:100px;border-radius:50%;background:var(--paper-raised);display:flex;flex-direction:column;align-items:center;justify-content:center;">';
+      html += '<span style="font-size:20px;font-weight:700;">'+total+'</span><span style="font-size:11px;color:var(--ink-faint);">건</span>';
+      html += '</div></div></div>';
+
+      ATTENDANCE_TYPES.forEach(function(t){
+        if(typeCounts[t] === 0) return;
+        html += '<div style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;">';
+        html += '<span style="width:10px;height:10px;border-radius:50%;background:'+ATTENDANCE_TYPE_COLOR[t]+';display:inline-block;flex-shrink:0;"></span>';
+        html += '<span style="flex:1;">'+t+'</span><b>'+typeCounts[t]+'건 ('+(typeCounts[t]/total*100).toFixed(0)+'%)</b>';
+        html += '</div>';
+      });
+    }
+    html += '</div>';
+
+    html += '<p class="card-title">목록 ('+filtered.length+'건)</p>';
+    var sorted = filtered.slice().sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+    if(sorted.length === 0){
+      html += '<p class="empty-inline">기록이 없어요.</p>';
+    }else{
+      sorted.forEach(function(e){
+        var emp = employees.find(function(x){ return x.id === e.employeeId; });
+        var tcolor = ATTENDANCE_TYPE_COLOR[e.workType] || 'var(--amber)';
+        html += '<div class="record-item">';
+        html += '<div class="record-top"><span class="record-badge" style="background:'+tcolor+'22;color:'+tcolor+';">🗓️ '+escapeHtml(e.workType||'')+'</span>';
+        html += '<span style="font-size:12px;color:var(--ink-faint);">'+niceDate(e.date)+'</span></div>';
+        html += '<p class="record-sub">'+(emp?escapeHtml(emp.name):'(직원 정보 없음)')+(e.time?' · '+e.time:'')+(e.content?' · '+escapeHtml(e.content):'')+'</p>';
+        html += '<div class="record-actions">';
+        html += '<button class="cancelbtn" data-hr-edit="'+e.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">수정</button>';
+        html += '<button class="danger" data-hr-del="'+e.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">삭제</button>';
+        html += '</div></div>';
+      });
+    }
+
+    body.innerHTML = html;
+    document.querySelectorAll('#hrPeriodChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        hrPeriodMode = c.getAttribute('data-val');
+        renderHrScreen();
+      });
+    });
+    document.getElementById('hrMonthPickBtn').addEventListener('click', function(){ openDatePicker('hrmonth'); });
+    document.getElementById('hrYearPickBtn').addEventListener('click', function(){ openDatePicker('hryear'); });
+    document.querySelectorAll('#hrTypeChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        hrTypeMode = c.getAttribute('data-val');
+        renderHrScreen();
+      });
+    });
+    body.querySelectorAll('[data-hr-edit]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var e = entries.find(function(x){ return x.id === btn.getAttribute('data-hr-edit'); });
+        if(e) openAttendanceForm(e);
+      });
+    });
+    body.querySelectorAll('[data-hr-del]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        entries = entries.filter(function(x){ return x.id !== btn.getAttribute('data-hr-del'); });
+        await saveEntries();
+        renderHrScreen();
+      });
+    });
   }
 
   function renderStatsScreen(){
@@ -3835,7 +4526,7 @@
         html += '<div class="record-item">';
         html += '<div class="record-top">';
         html += '<span class="record-badge '+e.type+'">'+meta.icon+' '+meta.label+'</span>';
-        if(e.type !== 'task'){
+        if(e.type !== 'task' && e.type !== 'attendance'){
           html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
         }
         html += '</div>';
@@ -3865,6 +4556,7 @@
         else if(entry.type === 'expense') openExpenseForm(entry);
         else if(entry.type === 'welfare') openWelfareForm(entry);
         else if(entry.type === 'task') openTaskForm(entry);
+        else if(entry.type === 'attendance') openAttendanceForm(entry);
         else openOvertimeForm(entry);
       });
     });
@@ -3910,7 +4602,7 @@
         html += '<div class="record-item">';
         html += '<div class="record-top">';
         html += '<span class="record-badge '+e.type+'">'+meta.icon+' '+meta.label+'</span>';
-        if(e.type !== 'task'){
+        if(e.type !== 'task' && e.type !== 'attendance'){
           html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
         }
         html += '</div>';
@@ -3984,6 +4676,7 @@
         else if(entry.type === 'expense') openExpenseForm(entry);
         else if(entry.type === 'welfare') openWelfareForm(entry);
         else if(entry.type === 'task') openTaskForm(entry);
+        else if(entry.type === 'attendance') openAttendanceForm(entry);
         else openOvertimeForm(entry);
       });
     });
@@ -4078,6 +4771,7 @@
     document.getElementById('gotoTodayBtn').addEventListener('click', function(){
       calendarOffset = 0;
       selectedDate = todayStr();
+      dayDetailVisible = false;
       renderCalendar();
       renderDayDetail();
     });
@@ -4114,6 +4808,33 @@
     document.getElementById('statsBackBtn').addEventListener('click', function(){
       document.getElementById('statsScreen').classList.remove('open');
     });
+    document.getElementById('hrOpenBtn').addEventListener('click', function(){
+      hrPeriodMode = 'month';
+      hrTypeMode = 'all';
+      renderHrScreen();
+      document.getElementById('hrScreen').classList.add('open');
+    });
+    document.getElementById('hrBackBtn').addEventListener('click', function(){
+      document.getElementById('hrScreen').classList.remove('open');
+    });
+    document.getElementById('hrSettingsBtn').addEventListener('click', function(){
+      renderEmployeeSettingsScreen();
+      document.getElementById('employeeSettingsScreen').classList.add('open');
+    });
+    document.getElementById('employeeSettingsBackBtn').addEventListener('click', function(){
+      document.getElementById('employeeSettingsScreen').classList.remove('open');
+      renderHrScreen();
+    });
+    document.getElementById('employeeFormCloseBtn').addEventListener('click', function(){ closeSheet('employeeFormSheet'); });
+    document.getElementById('attendanceCloseBtn').addEventListener('click', function(){ closeSheet('attendanceSheet'); });
+    document.getElementById('hrEvalBtn').addEventListener('click', function(){
+      renderEvaluationScreen();
+      document.getElementById('evaluationScreen').classList.add('open');
+    });
+    document.getElementById('evaluationBackBtn').addEventListener('click', function(){
+      document.getElementById('evaluationScreen').classList.remove('open');
+    });
+    document.getElementById('evaluationFormCloseBtn').addEventListener('click', function(){ closeSheet('evaluationFormSheet'); });
     document.getElementById('yearPrevBtn').addEventListener('click', function(){
       pickerYear -= 1;
       var now = new Date();
@@ -4192,6 +4913,8 @@
       tenureAmounts = await loadTenureAmounts();
       monthlyBudget = await loadMonthlyBudget();
       budgetWarningPct = await loadBudgetWarningPct();
+      employees = await loadEmployees();
+      evaluations = await loadEvaluations();
       var backupReminderData = await loadBackupReminder();
       backupReminderDays = backupReminderData.days != null ? backupReminderData.days : 7;
       lastBackupDate = backupReminderData.last || null;
