@@ -351,6 +351,9 @@
     gap:8px;
     margin-bottom:14px;
   }
+  .tagbtn.task{
+    grid-column:1 / -1;
+  }
   .tagbtn{
     flex:1;
     padding:12px 6px;
@@ -4074,6 +4077,7 @@
     });
     document.getElementById('gotoTodayBtn').addEventListener('click', function(){
       calendarOffset = 0;
+      selectedDate = todayStr();
       renderCalendar();
       renderDayDetail();
     });
