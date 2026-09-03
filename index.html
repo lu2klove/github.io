@@ -352,15 +352,9 @@
   }
   .tagbtn-row{
     display:grid;
-    grid-template-columns:1fr 1fr;
+    grid-template-columns:1fr 1fr 1fr;
     gap:8px;
     margin-bottom:14px;
-  }
-  .tagbtn.task{
-    grid-column:1 / -1;
-  }
-  .tagbtn.attendance{
-    grid-column:1 / -1;
   }
   .tagbtn{
     flex:1;
@@ -2344,8 +2338,9 @@
   // ---------- 인사관리: 직원 ----------
   var EMPLOYEES_KEY = 'workjournal:employees';
   var EMPLOYEES_LOCAL_KEY = 'work_journal_employees_v1';
-  var employees = []; // [{id, name, company, department, project, position, hireDate, resignDate, leaveDate, returnDate, workLocation}]
-  var EMPLOYEE_POSITIONS = ['사원','대리','과장','차장','부장/파트장'];
+  var employees = []; // [{id, name, company, department, project, job, position, hireDate, resignDate, leaveDate, returnDate, workLocation}]
+  var EMPLOYEE_POSITIONS = ['사원','대리','과장','차장','부장','파트장','팀장','이사'];
+  var EMPLOYEE_JOBS = ['운영관리','네트워크','시스템','DB','미들웨어','백업','품질','사업관리','개발','아키텍처','PM'];
   var EVALUATIONS_KEY = 'workjournal:evaluations';
   var EVALUATIONS_LOCAL_KEY = 'work_journal_evaluations_v1';
   var evaluations = []; // [{id, employeeId, year, diligence, workAttend, workDinner, workEvent, competency, achievement, selfdev, baseScore, reward, penalty, finalScore, note, createdAt, updatedAt}]
@@ -2381,7 +2376,7 @@
         html += '<div class="record-item">';
         html += '<div class="record-top"><span class="record-badge" style="background:var(--amber-soft);color:var(--amber);">👤 '+escapeHtml(emp.name)+'</span>';
         html += '<span style="font-size:12px;color:var(--ink-faint);">'+escapeHtml(emp.position||'')+'</span></div>';
-        html += '<p class="record-sub">'+escapeHtml([emp.company,emp.department,emp.project].filter(Boolean).join(' · ')||'-')+'</p>';
+        html += '<p class="record-sub">'+escapeHtml([emp.company,emp.department,emp.project,emp.job].filter(Boolean).join(' · ')||'-')+'</p>';
         html += '<div class="record-actions">';
         html += '<button class="cancelbtn" data-emp-edit="'+emp.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">수정</button>';
         html += '<button class="danger" data-emp-del="'+emp.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">삭제</button>';
@@ -2416,6 +2411,12 @@
     html += '<div class="field"><span class="field-label">회사명</span><input type="text" id="emp_company" value="'+escapeHtml(e.company||'')+'"></div>';
     html += '<div class="field"><span class="field-label">부서명</span><input type="text" id="emp_department" value="'+escapeHtml(e.department||'')+'"></div>';
     html += '<div class="field"><span class="field-label">프로젝트</span><input type="text" id="emp_project" value="'+escapeHtml(e.project||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">직무</span><select id="emp_job">';
+    html += '<option value="">선택 안 함</option>';
+    EMPLOYEE_JOBS.forEach(function(j){
+      html += '<option value="'+j+'"'+(e.job===j?' selected':'')+'>'+j+'</option>';
+    });
+    html += '</select></div>';
     html += '<div class="field"><span class="field-label">직급</span><select id="emp_position">';
     EMPLOYEE_POSITIONS.forEach(function(p){
       html += '<option value="'+p+'"'+(e.position===p?' selected':'')+'>'+p+'</option>';
@@ -2457,6 +2458,7 @@
       company: document.getElementById('emp_company').value.trim(),
       department: document.getElementById('emp_department').value.trim(),
       project: document.getElementById('emp_project').value.trim(),
+      job: document.getElementById('emp_job').value,
       position: document.getElementById('emp_position').value,
       hireDate: document.getElementById('emp_hireDate').value,
       resignDate: document.getElementById('emp_resignDate').value,
@@ -4114,7 +4116,11 @@
 
     var label = mode === 'specificyear' ? (statsSpecificYear+'년') :
                 mode === 'quarter' ? '이번 분기' :
-                mode === 'half' ? '이번 반기' : '올해';
+                mode === 'half' ? '이번 반기' :
+                mode === 'month' ? '이번 달' :
+                mode === 'lastmonth' ? '전달' :
+                mode === 'specificmonth' ? (statsSpecificYear+'년 '+(statsSpecificMonth+1)+'월') : '올해';
+    var isSingleMonth = ['month','lastmonth','specificmonth'].indexOf(mode) !== -1;
 
     var byType = { trip:{amt:0,cnt:0}, expense:{amt:0,cnt:0}, overtime:{amt:0,cnt:0}, welfare:{amt:0,cnt:0}, task:{amt:0,cnt:0} };
     var totalAmt = 0;
@@ -4132,14 +4138,21 @@
     }).length;
 
     var monthlyAmt = {};
+    var dailyAmt = {};
     periodEntries.forEach(function(e){
       var ym = e.date.slice(0,7);
       monthlyAmt[ym] = (monthlyAmt[ym]||0) + recordAmount(e);
+      dailyAmt[e.date] = (dailyAmt[e.date]||0) + recordAmount(e);
     });
     var months = Object.keys(monthlyAmt).sort();
+    var days = Object.keys(dailyAmt).sort();
     var maxMonthAmt = 0, peakMonth = null;
     months.forEach(function(ym){
       if(monthlyAmt[ym] > maxMonthAmt){ maxMonthAmt = monthlyAmt[ym]; peakMonth = ym; }
+    });
+    var maxDayAmt = 0, peakDay = null;
+    days.forEach(function(d){
+      if(dailyAmt[d] > maxDayAmt){ maxDayAmt = dailyAmt[d]; peakDay = d; }
     });
 
     var html = '<div class="rule-card" style="margin-bottom:20px;">';
@@ -4158,7 +4171,19 @@
       if(d.cnt === 0) return;
       html += '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:13px;"><span>'+meta.icon+' '+meta.label+'</span><span>'+(t==='task'?'':formatWon(d.amt)+'원 · ')+d.cnt+'건</span></div>';
     });
-    if(months.length > 1){
+    if(isSingleMonth && days.length > 1){
+      html += '<div style="border-top:1px solid var(--line);margin:10px 0 8px;"></div>';
+      html += '<p style="font-size:12px;color:var(--ink-faint);margin-bottom:6px;">일별 지출</p>';
+      days.forEach(function(d){
+        var pct = maxDayAmt > 0 ? (dailyAmt[d]/maxDayAmt*100) : 0;
+        var dLabel = parseInt(d.slice(8,10),10)+'일';
+        html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">';
+        html += '<span style="font-size:11px;color:var(--ink-soft);width:28px;">'+dLabel+'</span>';
+        html += '<div style="flex:1;background:var(--paper);border-radius:4px;height:14px;overflow:hidden;"><div style="width:'+pct+'%;background:var(--pine);height:100%;"></div></div>';
+        html += '<span style="font-size:11px;color:var(--ink-soft);min-width:60px;text-align:right;">'+formatWon(dailyAmt[d])+'원</span>';
+        html += '</div>';
+      });
+    }else if(!isSingleMonth && months.length > 1){
       html += '<div style="border-top:1px solid var(--line);margin:10px 0 8px;"></div>';
       html += '<p style="font-size:12px;color:var(--ink-faint);margin-bottom:6px;">월별 지출</p>';
       months.forEach(function(ym){
@@ -4171,7 +4196,9 @@
         html += '</div>';
       });
     }
-    if(peakMonth){
+    if(isSingleMonth && peakDay){
+      html += '<p style="font-size:12px;color:var(--ink-faint);margin-top:10px;">🏆 지출이 가장 많았던 날: '+(parseInt(peakDay.slice(8,10),10))+'일 ('+formatWon(maxDayAmt)+'원)</p>';
+    }else if(!isSingleMonth && peakMonth){
       html += '<p style="font-size:12px;color:var(--ink-faint);margin-top:10px;">🏆 지출이 가장 많았던 달: '+(parseInt(peakMonth.slice(5,7),10))+'월 ('+formatWon(maxMonthAmt)+'원)</p>';
     }
     if(unsettledCount > 0){
@@ -4313,7 +4340,7 @@
     html += '<button class="chip'+(statsPeriodMode==='specificyear'?' selected':'')+'" id="statsYearPickBtn" type="button">'+yearPickLabel+'</button>';
     html += '</div>';
 
-    if(['specificyear','quarter','half','year'].indexOf(statsPeriodMode) !== -1){
+    if(['specificyear','quarter','half','year','month','lastmonth','specificmonth'].indexOf(statsPeriodMode) !== -1){
       html += renderPeriodReportHTML(statsPeriodMode);
     }
 
