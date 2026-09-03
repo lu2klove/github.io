@@ -2602,6 +2602,20 @@
     var final = base + (v.reward||0) - (v.penalty||0);
     return { participation:participation, base:base, final:final };
   }
+  var EVAL_GRADE_SCALE = [
+    { grade:'E+', min:95, color:'var(--pine)' },
+    { grade:'E',  min:90, color:'var(--pine)' },
+    { grade:'M+', min:80, color:'var(--olive)' },
+    { grade:'M',  min:70, color:'var(--olive)' },
+    { grade:'I',  min:-Infinity, color:'var(--brick)' }
+  ];
+  function computeEvalGrade(finalScore, excluded){
+    if(excluded) return { grade:'N', color:'var(--ink-faint)' };
+    for(var i=0; i<EVAL_GRADE_SCALE.length; i++){
+      if(finalScore >= EVAL_GRADE_SCALE[i].min) return EVAL_GRADE_SCALE[i];
+    }
+    return EVAL_GRADE_SCALE[EVAL_GRADE_SCALE.length-1];
+  }
   var editingEvaluationId = null;
   var COMPETENCY_ITEMS = [
     {key:'knowledge', label:'업무지식', pts:7},
@@ -2732,7 +2746,12 @@
     html += checkboxGroupHTML(PENALTY_ITEMS, 'penalty', e.penaltyItems);
     html += '<p class="savehint" style="font-weight:700;color:var(--brick);" id="ev_penaltyTotal">Penalty 합계: 0</p>';
 
-    html += '<div class="verdict-box" style="margin:16px 0;"><p class="verdict-pct" style="font-weight:700;">최종점수</p><p class="verdict-label" id="ev_finalDisplay" style="color:var(--amber);">0</p></div>';
+    html += '<label class="checklist-item" style="margin-top:14px;"><input type="checkbox" id="ev_excluded"'+(e.excluded?' checked':'')+'><span>이 평가는 등급 산정에서 제외 (N등급)</span></label>';
+
+    html += '<div class="verdict-box" style="margin:16px 0;"><p class="verdict-pct" style="font-weight:700;">최종점수</p><p class="verdict-label" id="ev_finalDisplay" style="color:var(--amber);">0</p>';
+    html += '<p style="font-size:28px;font-weight:800;margin:6px 0 0;" id="ev_gradeDisplay">-</p>';
+    html += '<p class="savehint" style="margin-top:2px;">E+ 95↑ · E 90↑ · M+ 80↑ · M 70↑ · I 69↓ · N 평가제외</p>';
+    html += '</div>';
 
     html += '<div class="field"><span class="field-label">비고</span><textarea id="ev_note" placeholder="추가로 남길 내용">'+escapeHtml(e.note||'')+'</textarea></div>';
 
@@ -2803,11 +2822,17 @@
       var s = computeEvalScores(v);
       document.getElementById('ev_baseDisplay').textContent = s.base.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1') + ' / 100';
       document.getElementById('ev_finalDisplay').textContent = s.final.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1');
+      var excluded = document.getElementById('ev_excluded').checked;
+      var g = computeEvalGrade(s.final, excluded);
+      var gradeEl = document.getElementById('ev_gradeDisplay');
+      gradeEl.textContent = g.grade;
+      gradeEl.style.color = g.color;
     }
 
     document.querySelectorAll('.ev-score').forEach(function(inp){
       inp.addEventListener('input', refreshEvalTotals);
     });
+    document.getElementById('ev_excluded').addEventListener('change', refreshEvalTotals);
     document.querySelectorAll('.competency-cb, .selfdev-cb, .reward-cb, .achievecond-cb').forEach(function(cb){
       cb.addEventListener('change', refreshEvalTotals);
     });
@@ -2886,11 +2911,15 @@
       penalty: sumCheckedItems(PENALTY_ITEMS, penaltyItems)
     };
     var s = computeEvalScores(v);
+    var excluded = document.getElementById('ev_excluded').checked;
+    var grade = computeEvalGrade(s.final, excluded).grade;
     var payload = Object.assign({
       id: editingEvaluationId || uid(),
       employeeId: empEl.value,
       year: parseInt(document.getElementById('ev_year').value, 10) || new Date().getFullYear(),
       note: document.getElementById('ev_note').value.trim(),
+      excluded: excluded,
+      grade: grade,
       competencyItems: competencyItems,
       achievementConditions: achievementConditions,
       selfdevItems: selfdevItems,
@@ -2932,10 +2961,11 @@
     if(sorted.length === 0){
       html += '<p class="empty-inline">등록된 평가가 없어요.</p>';
     }else{
-      html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:520px;">';
-      html += '<thead><tr><th>순위</th><th>평가연도</th><th>소속</th><th>이름</th><th>업무</th><th>최종점수</th></tr></thead><tbody>';
+      html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:600px;">';
+      html += '<thead><tr><th>순위</th><th>평가연도</th><th>소속</th><th>이름</th><th>업무</th><th>최종점수</th><th>등급</th></tr></thead><tbody>';
       sorted.forEach(function(ev, idx){
         var emp = employees.find(function(x){ return x.id === ev.employeeId; });
+        var g = computeEvalGrade(ev.finalScore, ev.excluded);
         html += '<tr data-eval-row="'+ev.id+'" style="cursor:pointer;">';
         html += '<td>'+(idx+1)+'</td>';
         html += '<td>'+ev.year+'년</td>';
@@ -2943,6 +2973,7 @@
         html += '<td>'+(emp?escapeHtml(emp.name):'(삭제된 직원)')+'</td>';
         html += '<td>'+(emp?escapeHtml(emp.project||emp.workLocation||'-'):'-')+'</td>';
         html += '<td style="font-weight:700;">'+ev.finalScore.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1')+'</td>';
+        html += '<td style="font-weight:800;color:'+g.color+';">'+g.grade+'</td>';
         html += '</tr>';
       });
       html += '</tbody></table></div>';
