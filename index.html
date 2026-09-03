@@ -379,6 +379,57 @@
   .tagbtn.task{ border-color:var(--pine); }
   .tagbtn.attendance{ border-color:var(--amber); }
 
+  .checklist-item{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+    padding:9px 4px;
+    border-bottom:1px solid var(--line);
+    font-size:13.5px;
+    cursor:pointer;
+  }
+  .checklist-item:last-child{ border-bottom:none; }
+  .checklist-item input[type="checkbox"]{
+    width:18px;
+    height:18px;
+    margin-top:1px;
+    flex-shrink:0;
+    accent-color:var(--amber);
+    cursor:pointer;
+  }
+  .checklist-item input[type="checkbox"]:disabled{
+    opacity:0.4;
+    cursor:not-allowed;
+  }
+  #ev_achieveSlider{
+    -webkit-appearance:none;
+    appearance:none;
+    height:10px;
+    border-radius:5px;
+    background:linear-gradient(to right, var(--amber-soft), var(--amber));
+    outline:none;
+    margin:10px 0 4px;
+  }
+  #ev_achieveSlider::-webkit-slider-thumb{
+    -webkit-appearance:none;
+    appearance:none;
+    width:26px;
+    height:26px;
+    border-radius:50%;
+    background:var(--ink);
+    border:3px solid var(--amber);
+    cursor:pointer;
+    box-shadow:0 1px 4px rgba(0,0,0,0.3);
+  }
+  #ev_achieveSlider::-moz-range-thumb{
+    width:26px;
+    height:26px;
+    border-radius:50%;
+    background:var(--ink);
+    border:3px solid var(--amber);
+    cursor:pointer;
+    box-shadow:0 1px 4px rgba(0,0,0,0.3);
+  }
   .record-item{
     background:var(--paper);
     border:1px solid var(--line);
@@ -972,10 +1023,21 @@
   <div class="side-header">
     <button class="side-back" id="employeeSettingsBackBtn" type="button">‹ 뒤로</button>
     <span class="side-title">👤 직원 등록</span>
-    <span style="width:44px;"></span>
+    <button class="side-back" id="employeeOptionsBtn" type="button" aria-label="등록관리">🗂️</button>
   </div>
   <div class="side-scroll-wrap">
     <div class="side-body" id="employeeSettingsBody"></div>
+  </div>
+</div>
+
+<div class="side-screen" id="employeeOptionsScreen">
+  <div class="side-header">
+    <button class="side-back" id="employeeOptionsBackBtn" type="button">‹ 뒤로</button>
+    <span class="side-title">🗂️ 등록관리</span>
+    <span style="width:44px;"></span>
+  </div>
+  <div class="side-scroll-wrap">
+    <div class="side-body" id="employeeOptionsBody"></div>
   </div>
 </div>
 
@@ -2348,7 +2410,36 @@
   var EMPLOYEES_LOCAL_KEY = 'work_journal_employees_v1';
   var employees = []; // [{id, name, company, department, project, job, position, hireDate, resignDate, leaveDate, returnDate, workLocation}]
   var EMPLOYEE_POSITIONS = ['사원','대리','과장','차장','부장','파트장','팀장','이사'];
-  var EMPLOYEE_JOBS = ['운영관리','네트워크','시스템','DB','미들웨어','백업','품질','사업관리','개발','아키텍처','PM'];
+  var DEFAULT_EMPLOYEE_JOBS = ['운영관리','네트워크','시스템','DB','미들웨어','백업','품질','사업관리','개발','아키텍처','PM'];
+  var EMPLOYEE_OPTIONS_KEY = 'workjournal:employeeoptions';
+  var EMPLOYEE_OPTIONS_LOCAL_KEY = 'work_journal_employeeoptions_v1';
+  var employeeCompanies = [];
+  var employeeDepartments = [];
+  var employeeProjects = [];
+  var employeeJobs = DEFAULT_EMPLOYEE_JOBS.slice();
+  var employeeWorkLocations = [];
+  async function loadEmployeeOptions(){
+    var fallback = { companies:[], departments:[], projects:[], jobs:DEFAULT_EMPLOYEE_JOBS.slice(), workLocations:[] };
+    if(hasClaudeStorage()){
+      try{
+        var res = await window.storage.get(EMPLOYEE_OPTIONS_KEY, false);
+        if(res && res.value) return Object.assign(fallback, JSON.parse(res.value));
+        return fallback;
+      }catch(e){ return fallback; }
+    }
+    try{
+      var raw = localStorage.getItem(EMPLOYEE_OPTIONS_LOCAL_KEY);
+      return raw ? Object.assign(fallback, JSON.parse(raw)) : fallback;
+    }catch(e){ return fallback; }
+  }
+  async function saveEmployeeOptions(){
+    var data = { companies:employeeCompanies, departments:employeeDepartments, projects:employeeProjects, jobs:employeeJobs, workLocations:employeeWorkLocations };
+    if(hasClaudeStorage()){
+      try{ await window.storage.set(EMPLOYEE_OPTIONS_KEY, JSON.stringify(data), false); }catch(e){}
+      return;
+    }
+    try{ localStorage.setItem(EMPLOYEE_OPTIONS_LOCAL_KEY, JSON.stringify(data)); }catch(e){}
+  }
   var EVALUATIONS_KEY = 'workjournal:evaluations';
   var EVALUATIONS_LOCAL_KEY = 'work_journal_evaluations_v1';
   var evaluations = []; // [{id, employeeId, year, diligence, workAttend, workDinner, workEvent, competency, achievement, selfdev, baseScore, reward, penalty, finalScore, note, createdAt, updatedAt}]
@@ -2371,6 +2462,22 @@
       return;
     }
     try{ localStorage.setItem(EVALUATIONS_LOCAL_KEY, JSON.stringify(evaluations)); }catch(e){}
+  }
+
+  function renderEmployeeOptionsScreen(){
+    var body = document.getElementById('employeeOptionsBody');
+    var html = '';
+    html += renderEditableListHTML('🏢 회사명', employeeCompanies, 'eo_company', '예: 테스트회사', false);
+    html += renderEditableListHTML('🗂️ 부서명', employeeDepartments, 'eo_department', '예: 개발팀', false);
+    html += renderEditableListHTML('📁 프로젝트', employeeProjects, 'eo_project', '예: 프로젝트A', false);
+    html += renderEditableListHTML('🛠️ 직무', employeeJobs, 'eo_job', '예: 개발', true);
+    html += renderEditableListHTML('📍 근무지', employeeWorkLocations, 'eo_workLocation', '예: 서울 본사', false);
+    body.innerHTML = html;
+    wireEditableList('eo_company', employeeCompanies, saveEmployeeOptions, null, renderEmployeeOptionsScreen);
+    wireEditableList('eo_department', employeeDepartments, saveEmployeeOptions, null, renderEmployeeOptionsScreen);
+    wireEditableList('eo_project', employeeProjects, saveEmployeeOptions, null, renderEmployeeOptionsScreen);
+    wireEditableList('eo_job', employeeJobs, saveEmployeeOptions, DEFAULT_EMPLOYEE_JOBS, renderEmployeeOptionsScreen);
+    wireEditableList('eo_workLocation', employeeWorkLocations, saveEmployeeOptions, null, renderEmployeeOptionsScreen);
   }
 
   function renderEmployeeSettingsScreen(){
@@ -2416,15 +2523,18 @@
     var body = document.getElementById('employeeFormBody');
     var html = '';
     html += '<div class="field"><span class="field-label field-label-strong">👤 직원명</span><input type="text" id="emp_name" placeholder="예: 홍길동" value="'+escapeHtml(e.name||'')+'"></div>';
-    html += '<div class="field"><span class="field-label">회사명</span><input type="text" id="emp_company" value="'+escapeHtml(e.company||'')+'"></div>';
-    html += '<div class="field"><span class="field-label">부서명</span><input type="text" id="emp_department" value="'+escapeHtml(e.department||'')+'"></div>';
-    html += '<div class="field"><span class="field-label">프로젝트</span><input type="text" id="emp_project" value="'+escapeHtml(e.project||'')+'"></div>';
-    html += '<div class="field"><span class="field-label">직무</span><select id="emp_job">';
-    html += '<option value="">선택 안 함</option>';
-    EMPLOYEE_JOBS.forEach(function(j){
-      html += '<option value="'+j+'"'+(e.job===j?' selected':'')+'>'+j+'</option>';
-    });
-    html += '</select></div>';
+    function optSelect(fieldId, list, current){
+      var h = '<select id="'+fieldId+'"><option value="">선택 안 함</option>';
+      list.forEach(function(v){
+        h += '<option value="'+escapeHtml(v)+'"'+(current===v?' selected':'')+'>'+escapeHtml(v)+'</option>';
+      });
+      h += '</select>';
+      return h;
+    }
+    html += '<div class="field"><span class="field-label">회사명</span>'+optSelect('emp_company', employeeCompanies, e.company)+'</div>';
+    html += '<div class="field"><span class="field-label">부서명</span>'+optSelect('emp_department', employeeDepartments, e.department)+'</div>';
+    html += '<div class="field"><span class="field-label">프로젝트</span>'+optSelect('emp_project', employeeProjects, e.project)+'</div>';
+    html += '<div class="field"><span class="field-label">직무</span>'+optSelect('emp_job', employeeJobs, e.job)+'</div>';
     html += '<div class="field"><span class="field-label">직급</span><select id="emp_position">';
     EMPLOYEE_POSITIONS.forEach(function(p){
       html += '<option value="'+p+'"'+(e.position===p?' selected':'')+'>'+p+'</option>';
@@ -2432,7 +2542,7 @@
     html += '</select></div>';
     html += '<div class="row2"><div class="field"><span class="field-label">입사일</span><input type="date" id="emp_hireDate" value="'+(e.hireDate||'')+'"></div><div class="field"><span class="field-label">퇴사일</span><input type="date" id="emp_resignDate" value="'+(e.resignDate||'')+'"></div></div>';
     html += '<div class="row2"><div class="field"><span class="field-label">휴직일</span><input type="date" id="emp_leaveDate" value="'+(e.leaveDate||'')+'"></div><div class="field"><span class="field-label">복직일</span><input type="date" id="emp_returnDate" value="'+(e.returnDate||'')+'"></div></div>';
-    html += '<div class="field"><span class="field-label">근무지</span><input type="text" id="emp_workLocation" value="'+escapeHtml(e.workLocation||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">근무지</span>'+optSelect('emp_workLocation', employeeWorkLocations, e.workLocation)+'</div>';
     html += '<div class="row2">';
     html += '<button class="cancelbtn" id="emp_cancelBtn" type="button">취소</button>';
     html += '<button class="savebtn" id="emp_saveBtn" type="button">'+(existing?'수정 저장':'직원 등록')+'</button>';
@@ -2493,10 +2603,80 @@
     return { participation:participation, base:base, final:final };
   }
   var editingEvaluationId = null;
+  var COMPETENCY_ITEMS = [
+    {key:'knowledge', label:'업무지식', pts:7},
+    {key:'application', label:'응용력', pts:7},
+    {key:'leadership', label:'리더십', pts:7},
+    {key:'communication', label:'소통', pts:7},
+    {key:'collaboration', label:'협업', pts:7}
+  ];
+  var ACHIEVEMENT_CONDITIONS = [
+    {key:'taskRate', label:'과업달성 95%이상'},
+    {key:'noIncident', label:'무장애 1등급 달성'},
+    {key:'slaScore', label:'SLA평균 4.5점 이상'}
+  ];
+  var ACHIEVEMENT_RANGE_BY_POSITION = {
+    '사원':   {min:1,  max:10, avg:5},
+    '대리':   {min:10, max:20, avg:15},
+    '과장':   {min:20, max:25, avg:22.5},
+    '차장':   {min:25, max:30, avg:27.5},
+    '부장':   {min:30, max:35, avg:32.5},
+    '파트장': {min:30, max:35, avg:32.5},
+    '팀장':   {min:30, max:35, avg:32.5},
+    '이사':   {min:30, max:35, avg:32.5}
+  };
+  var SELFDEV_ITEMS = [
+    {key:'license', label:'자격증', pts:3},
+    {key:'training', label:'교육', pts:3},
+    {key:'seminar', label:'세미나', pts:3},
+    {key:'degree', label:'학위 취득', pts:1}
+  ];
+  var REWARD_ITEMS = [
+    {key:'proposal', label:'제안서 작업', pts:5},
+    {key:'goalContrib', label:'사업 목표 달성 기여도', pts:5},
+    {key:'taskAchieve', label:'주요 과업 달성', pts:5},
+    {key:'process', label:'프로세스 담당', pts:5},
+    {key:'collab', label:'이해관계 부서와의 협업·요청 해결(ITSM 변경/릴리즈)', pts:5},
+    {key:'mentoring', label:'직원 양성 및 리더십', pts:5},
+    {key:'improvement', label:'업무개선', pts:5},
+    {key:'equipment', label:'장비사업 기여도', pts:5},
+    {key:'partLeaderRole', label:'파트장 직무', pts:10}
+  ];
+  var PENALTY_ITEMS = [
+    {key:'incident', label:'서비스 인적장애', pts:100},
+    {key:'negligence', label:'근무 태만(장시간 자리이석·잦은 지각/긴급휴가·점심시간 미준수·근무중 금융투자/게임)', pts:30},
+    {key:'attitude', label:'태도(분위기 저해·다툼·비협조/비관적 마인드)', pts:10},
+    {key:'tardiness', label:'지각(월평균 5회 이상, 주1회 이상)', pts:7},
+    {key:'incompetence', label:'업무미숙(잦은 실수 등)', pts:20},
+    {key:'lateSubmission', label:'인사평가 제출기한 미준수', pts:10},
+    {key:'formError', label:'인사평가 서식 오기', pts:2}
+  ];
+  function sumCheckedItems(items, checkedMap){
+    var sum = 0;
+    items.forEach(function(it){ if(checkedMap && checkedMap[it.key]) sum += it.pts; });
+    return sum;
+  }
+  function checkboxGroupHTML(items, prefix, checkedMap){
+    var html = '';
+    items.forEach(function(it){
+      var checked = !!(checkedMap && checkedMap[it.key]);
+      html += '<label class="checklist-item"><input type="checkbox" class="'+prefix+'-cb" data-key="'+it.key+'"'+(it.pts!=null?' data-pts="'+it.pts+'"':'')+(checked?' checked':'')+'>';
+      html += '<span>'+escapeHtml(it.label)+(it.pts!=null?' <b style="color:var(--ink-faint);">('+it.pts+'점)</b>':'')+'</span></label>';
+    });
+    return html;
+  }
+
   function openEvaluationForm(existing){
     editingEvaluationId = existing ? existing.id : null;
-    var e = existing || { year:new Date().getFullYear(), workAttend:2.5, workDinner:1.5, workEvent:1 };
+    var e = existing || { year:new Date().getFullYear(), workAttend:2.5, workDinner:1.5, workEvent:1, competencyItems:{}, achievementConditions:{}, selfdevItems:{}, rewardItems:{}, penaltyItems:{} };
     var body = document.getElementById('evaluationFormBody');
+
+    function getSelectedPosition(){
+      var empEl = document.getElementById('ev_employee');
+      if(!empEl || empEl.disabled) return null;
+      var emp = employees.find(function(x){ return x.id === empEl.value; });
+      return emp ? emp.position : null;
+    }
 
     var html = '';
     html += '<div class="field"><span class="field-label field-label-strong">👤 직원</span>';
@@ -2522,17 +2702,34 @@
     html += '</div>';
     html += '<div class="field"><span class="field-label">행사(2)</span><input type="number" step="0.5" min="0" max="2" class="ev-score" id="ev_workEvent" value="'+(e.workEvent!=null?e.workEvent:1)+'"></div>';
 
-    html += '<div class="field" style="margin-top:12px;"><span class="field-label">🧠 업무역량 (최대 35) — 업무지식·응용력·리더십·소통과 협업</span><input type="number" step="0.5" min="0" max="35" class="ev-score" id="ev_competency" value="'+(e.competency!=null?e.competency:0)+'"></div>';
+    html += '<p class="field-label field-label-strong" style="margin-top:14px;">🧠 업무역량 (최대 35)</p>';
+    html += checkboxGroupHTML(COMPETENCY_ITEMS, 'competency', e.competencyItems);
+    html += '<p class="savehint" style="font-weight:700;" id="ev_competencyTotal">업무역량 합계: 0 / 35</p>';
 
-    html += '<div class="field"><span class="field-label">🎯 성과달성 (최대 35) — 부서/팀 목표 기여 (과업달성 95%+, 무장애 1등급, SLA 4.5+)<br>직급별 평균: 사원 5 · 대리 15 · 과장 22.5 · 차장 27.5 · 부장/파트장 32.5</span><input type="number" step="0.5" min="0" max="35" class="ev-score" id="ev_achievement" value="'+(e.achievement!=null?e.achievement:0)+'"></div>';
+    html += '<p class="field-label field-label-strong" style="margin-top:14px;">🎯 성과달성 (최대 35) — 부서/팀 목표 기여</p>';
+    html += checkboxGroupHTML(ACHIEVEMENT_CONDITIONS, 'achievecond', e.achievementConditions);
+    html += '<p class="savehint" id="ev_achieveCondCount">목표 기여 0/3 달성 (2개 이상 권장)</p>';
+    html += '<div class="rule-card" style="margin-top:10px;">';
+    html += '<p class="savehint" id="ev_achievePosInfo" style="margin-top:0;">직원을 선택하면 직급별 점수 범위가 표시돼요.</p>';
+    html += '<input type="range" id="ev_achieveSlider" min="0" max="35" step="0.5" value="'+(e.achievement!=null?e.achievement:0)+'" style="width:100%;">';
+    html += '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-faint);margin-top:2px;"><span id="ev_achieveMinLabel">0</span><span id="ev_achieveAvgLabel"></span><span id="ev_achieveMaxLabel">35</span></div>';
+    html += '<p style="text-align:center;font-weight:700;font-size:18px;margin:8px 0 0;color:var(--amber);" id="ev_achieveValueDisplay">'+(e.achievement!=null?e.achievement:0)+'</p>';
+    html += '</div>';
 
-    html += '<div class="field"><span class="field-label">🌱 자기계발 (최대 10) — 자격증(3)·교육(3)·세미나(3)·학위(1)</span><input type="number" step="0.5" min="0" max="10" class="ev-score" id="ev_selfdev" value="'+(e.selfdev!=null?e.selfdev:0)+'"></div>';
+    html += '<p class="field-label field-label-strong" style="margin-top:14px;">🌱 자기계발 (최대 10)</p>';
+    html += checkboxGroupHTML(SELFDEV_ITEMS, 'selfdev', e.selfdevItems);
+    html += '<p class="savehint" style="font-weight:700;" id="ev_selfdevTotal">자기계발 합계: 0 / 10</p>';
 
     html += '<div class="rule-card" style="margin:14px 0;"><div style="display:flex;justify-content:space-between;"><span>평가점수 (base)</span><b id="ev_baseDisplay">0</b></div></div>';
 
-    html += '<p class="card-title" style="margin-top:8px;">🏆 Reward / Penalty</p>';
-    html += '<div class="field"><span class="field-label">Reward (최대 50) — 제안서·목표기여·과업달성·프로세스담당·협업·양성리더십·업무개선·장비사업기여 각5, 파트장직무10</span><input type="number" step="1" min="0" max="50" class="ev-score" id="ev_reward" value="'+(e.reward!=null?e.reward:0)+'"></div>';
-    html += '<div class="field"><span class="field-label">Penalty (7~100) — 인적장애100·근무태만30·태도10·지각7·업무미숙20·제출기한미준수10·서식오기2</span><input type="number" step="1" min="0" max="100" class="ev-score" id="ev_penalty" value="'+(e.penalty!=null?e.penalty:0)+'"></div>';
+    html += '<p class="card-title" style="margin-top:8px;">🏆 Reward (최대 50)</p>';
+    html += checkboxGroupHTML(REWARD_ITEMS, 'reward', e.rewardItems);
+    html += '<p class="savehint" style="font-weight:700;" id="ev_rewardTotal">Reward 합계: 0 / 50</p>';
+
+    html += '<p class="card-title" style="margin-top:14px;color:var(--brick);">🚨 Penalty (7~100)</p>';
+    html += '<p class="savehint" style="margin-top:-6px;">"서비스 인적장애"를 선택하면 다른 항목은 자동으로 해제돼요.</p>';
+    html += checkboxGroupHTML(PENALTY_ITEMS, 'penalty', e.penaltyItems);
+    html += '<p class="savehint" style="font-weight:700;color:var(--brick);" id="ev_penaltyTotal">Penalty 합계: 0</p>';
 
     html += '<div class="verdict-box" style="margin:16px 0;"><p class="verdict-pct" style="font-weight:700;">최종점수</p><p class="verdict-label" id="ev_finalDisplay" style="color:var(--amber);">0</p></div>';
 
@@ -2548,25 +2745,100 @@
 
     body.innerHTML = html;
 
+    function currentCheckedMap(prefix){
+      var map = {};
+      document.querySelectorAll('.'+prefix+'-cb').forEach(function(cb){
+        map[cb.getAttribute('data-key')] = cb.checked;
+      });
+      return map;
+    }
+    function updateAchieveRangeForPosition(){
+      var pos = getSelectedPosition();
+      var range = (pos && ACHIEVEMENT_RANGE_BY_POSITION[pos]) ? ACHIEVEMENT_RANGE_BY_POSITION[pos] : {min:0, max:35, avg:17.5};
+      var slider = document.getElementById('ev_achieveSlider');
+      slider.min = range.min;
+      slider.max = Math.min(range.max, 35);
+      document.getElementById('ev_achieveMinLabel').textContent = range.min;
+      document.getElementById('ev_achieveMaxLabel').textContent = Math.min(range.max, 35);
+      document.getElementById('ev_achieveAvgLabel').textContent = '평균 '+range.avg;
+      document.getElementById('ev_achievePosInfo').textContent = pos ? (pos+' 점수 범위: '+range.min+' ~ '+range.max+' (평균 '+range.avg+')') : '직원을 선택하면 직급별 점수 범위가 표시돼요.';
+      var curVal = parseFloat(slider.value);
+      if(isNaN(curVal) || curVal < range.min || curVal > range.max || (!existing && document.getElementById('ev_achieveSlider').dataset.touched !== '1')){
+        slider.value = range.avg;
+      }
+      document.getElementById('ev_achieveValueDisplay').textContent = slider.value;
+    }
     function refreshEvalTotals(){
+      var competencyMap = currentCheckedMap('competency');
+      var selfdevMap = currentCheckedMap('selfdev');
+      var rewardMap = currentCheckedMap('reward');
+      var penaltyMap = currentCheckedMap('penalty');
+      var competency = sumCheckedItems(COMPETENCY_ITEMS, competencyMap);
+      var selfdev = sumCheckedItems(SELFDEV_ITEMS, selfdevMap);
+      var reward = sumCheckedItems(REWARD_ITEMS, rewardMap);
+      var penalty = sumCheckedItems(PENALTY_ITEMS, penaltyMap);
+      var achievement = parseFloat(document.getElementById('ev_achieveSlider').value) || 0;
+      var achieveCondMap = currentCheckedMap('achievecond');
+      var achieveCondCount = ACHIEVEMENT_CONDITIONS.filter(function(c){ return achieveCondMap[c.key]; }).length;
+
+      document.getElementById('ev_competencyTotal').textContent = '업무역량 합계: '+competency+' / 35';
+      document.getElementById('ev_selfdevTotal').textContent = '자기계발 합계: '+selfdev+' / 10';
+      document.getElementById('ev_rewardTotal').textContent = 'Reward 합계: '+reward+' / 50';
+      document.getElementById('ev_penaltyTotal').textContent = 'Penalty 합계: '+penalty;
+      document.getElementById('ev_achieveCondCount').textContent = '목표 기여 '+achieveCondCount+'/3 달성 (2개 이상 권장)';
+      document.getElementById('ev_achieveValueDisplay').textContent = achievement;
+
       var v = {
         diligence: parseFloat(document.getElementById('ev_diligence').value) || 0,
         workAttend: parseFloat(document.getElementById('ev_workAttend').value) || 0,
         workDinner: parseFloat(document.getElementById('ev_workDinner').value) || 0,
         workEvent: parseFloat(document.getElementById('ev_workEvent').value) || 0,
-        competency: parseFloat(document.getElementById('ev_competency').value) || 0,
-        achievement: parseFloat(document.getElementById('ev_achievement').value) || 0,
-        selfdev: parseFloat(document.getElementById('ev_selfdev').value) || 0,
-        reward: parseFloat(document.getElementById('ev_reward').value) || 0,
-        penalty: parseFloat(document.getElementById('ev_penalty').value) || 0
+        competency: competency,
+        achievement: achievement,
+        selfdev: selfdev,
+        reward: reward,
+        penalty: penalty
       };
       var s = computeEvalScores(v);
       document.getElementById('ev_baseDisplay').textContent = s.base.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1') + ' / 100';
       document.getElementById('ev_finalDisplay').textContent = s.final.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1');
     }
+
     document.querySelectorAll('.ev-score').forEach(function(inp){
       inp.addEventListener('input', refreshEvalTotals);
     });
+    document.querySelectorAll('.competency-cb, .selfdev-cb, .reward-cb, .achievecond-cb').forEach(function(cb){
+      cb.addEventListener('change', refreshEvalTotals);
+    });
+    document.querySelectorAll('.penalty-cb').forEach(function(cb){
+      cb.addEventListener('change', function(){
+        if(cb.getAttribute('data-key') === 'incident' && cb.checked){
+          document.querySelectorAll('.penalty-cb').forEach(function(other){
+            if(other !== cb){ other.checked = false; other.disabled = true; }
+          });
+        }else if(cb.getAttribute('data-key') === 'incident' && !cb.checked){
+          document.querySelectorAll('.penalty-cb').forEach(function(other){ other.disabled = false; });
+        }
+        refreshEvalTotals();
+      });
+      if(cb.getAttribute('data-key') !== 'incident'){
+        var incidentCb = document.querySelector('.penalty-cb[data-key="incident"]');
+        if(incidentCb && incidentCb.checked) cb.disabled = true;
+      }
+    });
+    document.getElementById('ev_achieveSlider').addEventListener('input', function(){
+      this.dataset.touched = '1';
+      refreshEvalTotals();
+    });
+    var empSelect = document.getElementById('ev_employee');
+    if(empSelect && !empSelect.disabled){
+      empSelect.addEventListener('change', function(){
+        updateAchieveRangeForPosition();
+        refreshEvalTotals();
+      });
+    }
+    updateAchieveRangeForPosition();
+    if(existing) document.getElementById('ev_achieveSlider').dataset.touched = '1';
     refreshEvalTotals();
 
     document.getElementById('ev_cancelBtn').addEventListener('click', function(){ closeSheet('evaluationFormSheet'); });
@@ -2582,6 +2854,13 @@
     }
     openSheet('evaluationFormSheet');
   }
+  function readCheckedMap(prefix){
+    var map = {};
+    document.querySelectorAll('.'+prefix+'-cb').forEach(function(cb){
+      map[cb.getAttribute('data-key')] = cb.checked;
+    });
+    return map;
+  }
   async function saveEvaluationForm(){
     var empEl = document.getElementById('ev_employee');
     if(!empEl || empEl.disabled){
@@ -2589,16 +2868,21 @@
       return;
     }
     var now = new Date().toISOString();
+    var competencyItems = readCheckedMap('competency');
+    var achievementConditions = readCheckedMap('achievecond');
+    var selfdevItems = readCheckedMap('selfdev');
+    var rewardItems = readCheckedMap('reward');
+    var penaltyItems = readCheckedMap('penalty');
     var v = {
       diligence: parseFloat(document.getElementById('ev_diligence').value) || 0,
       workAttend: parseFloat(document.getElementById('ev_workAttend').value) || 0,
       workDinner: parseFloat(document.getElementById('ev_workDinner').value) || 0,
       workEvent: parseFloat(document.getElementById('ev_workEvent').value) || 0,
-      competency: parseFloat(document.getElementById('ev_competency').value) || 0,
-      achievement: parseFloat(document.getElementById('ev_achievement').value) || 0,
-      selfdev: parseFloat(document.getElementById('ev_selfdev').value) || 0,
-      reward: parseFloat(document.getElementById('ev_reward').value) || 0,
-      penalty: parseFloat(document.getElementById('ev_penalty').value) || 0
+      competency: sumCheckedItems(COMPETENCY_ITEMS, competencyItems),
+      achievement: parseFloat(document.getElementById('ev_achieveSlider').value) || 0,
+      selfdev: sumCheckedItems(SELFDEV_ITEMS, selfdevItems),
+      reward: sumCheckedItems(REWARD_ITEMS, rewardItems),
+      penalty: sumCheckedItems(PENALTY_ITEMS, penaltyItems)
     };
     var s = computeEvalScores(v);
     var payload = Object.assign({
@@ -2606,6 +2890,11 @@
       employeeId: empEl.value,
       year: parseInt(document.getElementById('ev_year').value, 10) || new Date().getFullYear(),
       note: document.getElementById('ev_note').value.trim(),
+      competencyItems: competencyItems,
+      achievementConditions: achievementConditions,
+      selfdevItems: selfdevItems,
+      rewardItems: rewardItems,
+      penaltyItems: penaltyItems,
       baseScore: s.base,
       finalScore: s.final,
       createdAt: editingEvaluationId ? (evaluations.find(function(x){return x.id===editingEvaluationId;})||{}).createdAt || now : now,
@@ -4874,6 +5163,14 @@
       document.getElementById('employeeSettingsScreen').classList.remove('open');
       renderHrScreen();
     });
+    document.getElementById('employeeOptionsBtn').addEventListener('click', function(){
+      renderEmployeeOptionsScreen();
+      document.getElementById('employeeOptionsScreen').classList.add('open');
+    });
+    document.getElementById('employeeOptionsBackBtn').addEventListener('click', function(){
+      document.getElementById('employeeOptionsScreen').classList.remove('open');
+      renderEmployeeSettingsScreen();
+    });
     document.getElementById('employeeFormCloseBtn').addEventListener('click', function(){ closeSheet('employeeFormSheet'); });
     document.getElementById('attendanceCloseBtn').addEventListener('click', function(){ closeSheet('attendanceSheet'); });
     document.getElementById('hrEvalBtn').addEventListener('click', function(){
@@ -4963,6 +5260,12 @@
       monthlyBudget = await loadMonthlyBudget();
       budgetWarningPct = await loadBudgetWarningPct();
       employees = await loadEmployees();
+      var empOpts = await loadEmployeeOptions();
+      employeeCompanies = empOpts.companies;
+      employeeDepartments = empOpts.departments;
+      employeeProjects = empOpts.projects;
+      employeeJobs = empOpts.jobs;
+      employeeWorkLocations = empOpts.workLocations;
       evaluations = await loadEvaluations();
       var backupReminderData = await loadBackupReminder();
       backupReminderDays = backupReminderData.days != null ? backupReminderData.days : 7;
