@@ -321,6 +321,7 @@
   .dot-expense{ background:var(--olive); }
   .dot-overtime{ background:var(--purple); }
   .dot-welfare{ background:var(--teal); }
+  .dot-task{ background:var(--pine); }
 
   .day-detail{
     max-height:0;
@@ -370,6 +371,7 @@
   .tagbtn.expense{ border-color:var(--olive); }
   .tagbtn.overtime{ border-color:var(--purple); }
   .tagbtn.welfare{ border-color:var(--teal); }
+  .tagbtn.task{ border-color:var(--pine); }
 
   .record-item{
     background:var(--paper);
@@ -395,6 +397,7 @@
   .record-badge.expense{ background:var(--olive-soft); color:var(--olive); }
   .record-badge.overtime{ background:var(--purple-soft); color:var(--purple); }
   .record-badge.welfare{ background:var(--teal-soft); color:var(--teal); }
+  .record-badge.task{ background:var(--pine-soft); color:var(--pine); }
   .record-amt{
     font-family:'IBM Plex Mono',monospace;
     font-weight:700;
@@ -804,6 +807,7 @@
   .year-nav .navbtn{ position:static; }
   .year-label{ font-size:20px; font-weight:700; }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -844,6 +848,9 @@
   <p class="subtitle">출장, 경비, 야근을 한 곳에 기록해요</p>
 
   <div id="backupReminderBanner" style="display:none;"></div>
+  <div id="budgetWarningBanner" style="display:none;"></div>
+  <div id="settlementReminderBanner" style="display:none;"></div>
+  <div id="settlementReminderList" style="display:none;"></div>
 
   <div class="card">
     <div class="statsrow-top">
@@ -944,6 +951,14 @@
     <button class="sheet-close" id="welfareCloseBtn" type="button">✕</button>
   </div>
   <div id="welfareFormBody"></div>
+</div>
+
+<div class="bottom-sheet" id="taskSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">📝 업무일지 등록</span>
+    <button class="sheet-close" id="taskCloseBtn" type="button">✕</button>
+  </div>
+  <div id="taskFormBody"></div>
 </div>
 
 <!-- 날짜 선택 -->
@@ -1478,6 +1493,7 @@
       expenseAmtEl.textContent = expenseAmt > 0 ? formatWon(expenseAmt)+'원 사용' : '';
       expenseAmtEl.style.color = 'var(--ink-soft)';
     }
+    renderBudgetWarningBanner(expenseAmt);
   }
   function renderCalendar(){
     var now = new Date();
@@ -1532,6 +1548,7 @@
         if(types.expense){ var de=document.createElement('span'); de.className='dot dot-expense'; dotrow.appendChild(de); }
         if(types.overtime){ var doo=document.createElement('span'); doo.className='dot dot-overtime'; dotrow.appendChild(doo); }
         if(types.welfare){ var dw=document.createElement('span'); dw.className='dot dot-welfare'; dotrow.appendChild(dw); }
+        if(types.task){ var dk=document.createElement('span'); dk.className='dot dot-task'; dotrow.appendChild(dk); }
         cell.appendChild(dotrow);
 
         var iconrow = document.createElement('div');
@@ -1540,6 +1557,7 @@
         if(types.expense){ var ie=document.createElement('span'); ie.textContent=TYPE_META.expense.icon; iconrow.appendChild(ie); }
         if(types.overtime){ var io=document.createElement('span'); io.textContent=TYPE_META.overtime.icon; iconrow.appendChild(io); }
         if(types.welfare){ var iw=document.createElement('span'); iw.textContent=TYPE_META.welfare.icon; iconrow.appendChild(iw); }
+        if(types.task){ var ik=document.createElement('span'); ik.textContent=TYPE_META.task.icon; iconrow.appendChild(ik); }
         cell.appendChild(iconrow);
       }
       cell.addEventListener('click', function(){
@@ -1553,13 +1571,16 @@
     document.getElementById('nextMonthBtn').disabled = (calendarOffset >= 0);
     renderStats();
     renderBackupBanner();
+    renderSettlementReminderBanner();
+    renderSettlementReminderList();
   }
 
   var TYPE_META = {
     trip: { icon:'✈️', label:'출장' },
     expense: { icon:'💳', label:'경비' },
     overtime: { icon:'🌙', label:'야근' },
-    welfare: { icon:'🎁', label:'복지비' }
+    welfare: { icon:'🎁', label:'복지비' },
+    task: { icon:'📝', label:'업무' }
   };
 
   function niceDate(dateStr){
@@ -1591,6 +1612,7 @@
     html += '<button class="tagbtn expense" id="addExpenseBtn" type="button"><span class="tagicon">💳</span>경비</button>';
     html += '<button class="tagbtn overtime" id="addOvertimeBtn" type="button"><span class="tagicon">🌙</span>야근</button>';
     html += '<button class="tagbtn welfare" id="addWelfareBtn" type="button"><span class="tagicon">🎁</span>복지비</button>';
+    html += '<button class="tagbtn task" id="addTaskBtn" type="button"><span class="tagicon">📝</span>업무</button>';
     html += '</div>';
 
     var dayEntries = entriesForDate(selectedDate).slice().sort(function(a,b){
@@ -1606,9 +1628,14 @@
         html += '<div class="record-item">';
         html += '<div class="record-top">';
         html += '<span class="record-badge '+e.type+'">'+meta.icon+' '+meta.label+'</span>';
-        html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
+        if(e.type !== 'task'){
+          html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
+        }
         html += '</div>';
         html += '<p class="record-sub">'+recordSummary(e)+'</p>';
+        if(e.receiptImage){
+          html += '<img src="'+e.receiptImage+'" class="receipt-thumb-small" data-receipt-view="'+e.id+'" style="max-width:60px;max-height:60px;border-radius:6px;border:1px solid var(--line);margin-top:6px;cursor:pointer;display:block;">';
+        }
         html += '<div class="record-actions">';
         if(isConfirming){
           html += '<span style="font-size:12.5px;color:var(--brick);">정말 삭제할까요?</span>';
@@ -1629,6 +1656,16 @@
     document.getElementById('addExpenseBtn').addEventListener('click', function(){ openExpenseForm(null); });
     document.getElementById('addOvertimeBtn').addEventListener('click', function(){ openOvertimeForm(null); });
     document.getElementById('addWelfareBtn').addEventListener('click', function(){ openWelfareForm(null); });
+    document.getElementById('addTaskBtn').addEventListener('click', function(){ openTaskForm(null); });
+    inner.querySelectorAll('[data-receipt-view]').forEach(function(img){
+      img.addEventListener('click', function(){
+        var id = img.getAttribute('data-receipt-view');
+        var e = entries.find(function(x){ return x.id === id; });
+        if(!e || !e.receiptImage) return;
+        var w = window.open('');
+        if(w) w.document.write('<title>영수증</title><body style="margin:0;background:#000;display:flex;"><img src="'+e.receiptImage+'" style="max-width:100%;margin:auto;">');
+      });
+    });
     inner.querySelectorAll('[data-edit]').forEach(function(btn){
       btn.addEventListener('click', function(){
         var id = btn.getAttribute('data-edit');
@@ -1637,6 +1674,7 @@
         if(e.type === 'trip') openTripForm(e);
         else if(e.type === 'expense') openExpenseForm(e);
         else if(e.type === 'welfare') openWelfareForm(e);
+        else if(e.type === 'task') openTaskForm(e);
         else openOvertimeForm(e);
       });
     });
@@ -1707,6 +1745,9 @@
         if(e.settlementStatus) p4.push(SETTLEMENT_LABEL[e.settlementStatus]);
       }
       return escapeHtml(p4.join(' · ') || '복지비 기록');
+    }
+    if(e.type === 'task'){
+      return escapeHtml((e.content||'').slice(0,60));
     }
     return '';
   }
@@ -1787,7 +1828,7 @@
     var transportOrder = ['car','company_car','public','other'];
     if(e.regionType === 'overseas') transportOrder.push('plane');
     transportOrder.forEach(function(k){
-      html += '<button class="chip'+(e.transport===k?' selected':'')+'" data-val="'+k+'" type="button">'+TRANSPORT_LABEL[k]+'</button>';
+      html += '<button class="chip'+((e.transport||'car')===k?' selected':'')+'" data-val="'+k+'" type="button">'+TRANSPORT_LABEL[k]+'</button>';
     });
     html += '</div></div>';
 
@@ -1797,7 +1838,7 @@
     html += '<div id="tf_carSection" style="display:'+(showCarSection?'block':'none')+';">';
     html += '<div class="field"><span class="field-label">유류기준</span><div class="chiprow" id="tf_fuelType">';
     ['gasoline','diesel'].forEach(function(k){
-      html += '<button class="chip'+(e.fuelType===k?' selected':'')+'" data-val="'+k+'" type="button">'+FUEL_LABEL[k]+'</button>';
+      html += '<button class="chip'+((e.fuelType||'gasoline')===k?' selected':'')+'" data-val="'+k+'" type="button">'+FUEL_LABEL[k]+'</button>';
     });
     html += '</div></div>';
     html += '<div class="field"><span class="field-label">배기량(cc, 참고용)</span><input type="number" id="tf_disp" value="'+(e.displacement!=null?e.displacement:'')+'"></div>';
@@ -1820,13 +1861,13 @@
 
     html += '<div class="field"><span class="field-label">정산현황</span><div class="chiprow" id="tf_settlement">';
     ['pending','done','none'].forEach(function(k){
-      html += '<button class="chip'+(e.settlementStatus===k?' selected':'')+'" data-val="'+k+'" type="button">'+SETTLEMENT_LABEL[k]+'</button>';
+      html += '<button class="chip'+((e.settlementStatus||'pending')===k?' selected':'')+'" data-val="'+k+'" type="button">'+SETTLEMENT_LABEL[k]+'</button>';
     });
     html += '</div></div>';
     html += '<div class="field" id="tf_depositField" style="display:'+(e.settlementStatus==='done'?'block':'none')+';"><span class="field-label">입금일</span><input type="date" id="tf_depositDate" value="'+(e.depositDate||'')+'"></div>';
     html += '<div class="field"><span class="field-label">출장상태</span><div class="chiprow" id="tf_tripstatus">';
     ['ongoing','done'].forEach(function(k){
-      html += '<button class="chip'+(e.tripStatus===k?' selected':'')+'" data-val="'+k+'" type="button">'+TRIPSTATUS_LABEL[k]+'</button>';
+      html += '<button class="chip'+((e.tripStatus||'ongoing')===k?' selected':'')+'" data-val="'+k+'" type="button">'+TRIPSTATUS_LABEL[k]+'</button>';
     });
     html += '</div></div>';
 
@@ -2202,6 +2243,111 @@
   var BUDGET_KEY = 'workjournal:monthlybudget';
   var BUDGET_LOCAL_KEY = 'work_journal_monthlybudget_v1';
   var monthlyBudget = 0;
+  var BUDGET_WARN_KEY = 'workjournal:budgetwarnpct';
+  var BUDGET_WARN_LOCAL_KEY = 'work_journal_budgetwarnpct_v1';
+  var budgetWarningPct = 80;
+  async function loadBudgetWarningPct(){
+    if(hasClaudeStorage()){
+      try{
+        var res = await window.storage.get(BUDGET_WARN_KEY, false);
+        return res && res.value ? parseFloat(res.value) : 80;
+      }catch(e){ return 80; }
+    }
+    try{
+      var raw = localStorage.getItem(BUDGET_WARN_LOCAL_KEY);
+      return raw ? parseFloat(raw) : 80;
+    }catch(e){ return 80; }
+  }
+  async function saveBudgetWarningPct(){
+    if(hasClaudeStorage()){
+      try{ await window.storage.set(BUDGET_WARN_KEY, String(budgetWarningPct), false); }catch(e){}
+      return;
+    }
+    try{ localStorage.setItem(BUDGET_WARN_LOCAL_KEY, String(budgetWarningPct)); }catch(e){}
+  }
+  function renderBudgetWarningBanner(monthExpenseAmt){
+    var banner = document.getElementById('budgetWarningBanner');
+    if(!banner) return;
+    if(!monthlyBudget || monthlyBudget <= 0 || !budgetWarningPct || budgetWarningPct <= 0){
+      banner.style.display = 'none';
+      return;
+    }
+    var pctUsed = (monthExpenseAmt / monthlyBudget) * 100;
+    if(pctUsed >= budgetWarningPct){
+      var over = monthExpenseAmt > monthlyBudget;
+      var msg = over
+        ? ('이번 달 경비가 예산을 '+formatWon(monthExpenseAmt-monthlyBudget)+'원 초과했어요.')
+        : ('이번 달 경비가 예산의 '+Math.round(pctUsed)+'%를 사용했어요.');
+      banner.innerHTML = '<div class="backup-banner" style="'+(over?'border-color:var(--brick);background:var(--brick-soft);':'')+'">'+
+        '<span class="backup-banner-text">'+(over?'🚨':'⚠️')+' '+msg+'</span>'+
+        '</div>';
+      banner.style.display = 'block';
+    }else{
+      banner.style.display = 'none';
+    }
+  }
+
+  var settlementListOpen = false;
+  function getUnsettledEntries(){
+    return entries.filter(function(e){
+      return (e.type === 'trip' || e.type === 'welfare') && e.settlementStatus && e.settlementStatus !== 'done';
+    }).sort(function(a,b){ return a.date < b.date ? -1 : 1; });
+  }
+  function renderSettlementReminderBanner(){
+    var banner = document.getElementById('settlementReminderBanner');
+    if(!banner) return;
+    var unsettled = getUnsettledEntries();
+    if(unsettled.length === 0){
+      banner.style.display = 'none';
+      document.getElementById('settlementReminderList').style.display = 'none';
+      settlementListOpen = false;
+      return;
+    }
+    banner.innerHTML = '<div class="backup-banner" id="settlementReminderClickable" style="cursor:pointer;">'+
+      '<span class="backup-banner-text">📋 정산 미완료 항목이 '+unsettled.length+'건 있어요.</span>'+
+      '<button class="backup-banner-btn" type="button">'+(settlementListOpen?'닫기':'확인하기')+'</button>'+
+      '</div>';
+    banner.style.display = 'block';
+    document.getElementById('settlementReminderClickable').addEventListener('click', function(){
+      settlementListOpen = !settlementListOpen;
+      renderSettlementReminderBanner();
+      renderSettlementReminderList();
+    });
+  }
+  function renderSettlementReminderList(){
+    var box = document.getElementById('settlementReminderList');
+    if(!box) return;
+    if(!settlementListOpen){
+      box.style.display = 'none';
+      box.innerHTML = '';
+      return;
+    }
+    var unsettled = getUnsettledEntries();
+    var html = '';
+    unsettled.forEach(function(e){
+      var meta = TYPE_META[e.type];
+      html += '<div class="record-item">';
+      html += '<div class="record-top">';
+      html += '<span class="record-badge '+e.type+'">'+meta.icon+' '+meta.label+'</span>';
+      html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
+      html += '</div>';
+      html += '<p class="record-sub">'+niceDate(e.date)+' · '+recordSummary(e)+'</p>';
+      html += '<div class="record-actions"><button class="cancelbtn" data-settle-edit="'+e.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">정산 상태 수정</button></div>';
+      html += '</div>';
+    });
+    box.innerHTML = html;
+    box.style.display = 'block';
+    box.querySelectorAll('[data-settle-edit]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var id = btn.getAttribute('data-settle-edit');
+        var e = entries.find(function(x){ return x.id === id; });
+        if(!e) return;
+        if(e.type === 'trip') openTripForm(e);
+        else if(e.type === 'welfare') openWelfareForm(e);
+      });
+    });
+  }
+
 
   async function loadExpenseCategories(){
     if(hasClaudeStorage()){
@@ -2308,6 +2454,8 @@
     html += '<div class="field"><span class="field-label field-label-strong">💰 월 예산(원)</span><input type="number" id="es_budget" value="'+(monthlyBudget||'')+'"></div>';
     html += '<button class="savebtn" id="es_saveBudgetBtn" type="button" style="width:100%;margin-bottom:8px;">예산 저장</button>';
     html += '<p class="toast" id="es_budgetToast"></p>';
+    html += '<div class="field" style="margin-top:12px;"><span class="field-label">예산의 몇 %를 넘으면 경고할까요? (0 = 끄기)</span><div class="row2" style="grid-template-columns:1fr auto;"><input type="number" id="es_budgetWarnPct" value="'+(budgetWarningPct||'')+'"><button class="cancelbtn" id="es_saveBudgetWarnBtn" type="button">저장</button></div></div>';
+    html += '<p class="toast" id="es_budgetWarnToast"></p>';
 
     html += renderEditableListHTML('🏷️ 카테고리 관리', expenseCategories, 'es_cat', '새 카테고리 이름', true);
     html += renderTypeListWithBudgetHTML();
@@ -2323,6 +2471,18 @@
       t.textContent = '저장됐어요';
       renderCalendar();
       setTimeout(function(){ t.textContent = ''; }, 1500);
+    });
+    document.getElementById('es_saveBudgetWarnBtn').addEventListener('click', async function(){
+      var v = parseFloat(document.getElementById('es_budgetWarnPct').value);
+      if(isNaN(v) || v < 0) v = 0;
+      budgetWarningPct = v;
+      document.getElementById('es_budgetWarnPct').value = v || '';
+      await saveBudgetWarningPct();
+      var t2 = document.getElementById('es_budgetWarnToast');
+      t2.style.color = 'var(--pine)';
+      t2.textContent = '저장됐어요';
+      renderCalendar();
+      setTimeout(function(){ t2.textContent = ''; }, 1500);
     });
 
     wireEditableList('es_cat', expenseCategories, saveExpenseCategories, DEFAULT_EXPENSE_CATEGORIES, renderExpenseSettingsScreen);
@@ -2392,9 +2552,83 @@
     });
   }
 
+  var currentReceiptImage = null;
+  function compressImageToDataURL(file, callback){
+    var reader = new FileReader();
+    reader.onload = function(ev){
+      var img = new Image();
+      img.onload = function(){
+        var maxW = 1000;
+        var scale = Math.min(1, maxW / img.width);
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        callback(canvas.toDataURL('image/jpeg', 0.7));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+  function receiptPreviewHTML(prefix){
+    if(currentReceiptImage){
+      return '<div style="position:relative;display:inline-block;">'+
+        '<img src="'+currentReceiptImage+'" style="max-width:120px;max-height:120px;border-radius:8px;border:1px solid var(--line);cursor:pointer;display:block;" id="'+prefix+'_receiptThumb">'+
+        '<button type="button" id="'+prefix+'_receiptRemoveBtn" style="position:absolute;top:-6px;right:-6px;background:var(--brick);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;line-height:1;">✕</button>'+
+        '</div>';
+    }
+    return '<button type="button" class="cancelbtn" id="'+prefix+'_receiptAddBtn" style="width:100%;">📷 영수증 사진 추가</button>';
+  }
+  function refreshReceiptPreview(prefix){
+    var box = document.getElementById(prefix+'_receiptPreview');
+    if(!box) return;
+    box.innerHTML = receiptPreviewHTML(prefix);
+    wireReceiptButtons(prefix);
+  }
+  function wireReceiptButtons(prefix){
+    var addBtn = document.getElementById(prefix+'_receiptAddBtn');
+    if(addBtn){
+      addBtn.addEventListener('click', function(){ document.getElementById(prefix+'_receiptInput').click(); });
+    }
+    var removeBtn = document.getElementById(prefix+'_receiptRemoveBtn');
+    if(removeBtn){
+      removeBtn.addEventListener('click', function(){
+        currentReceiptImage = null;
+        refreshReceiptPreview(prefix);
+      });
+    }
+    var thumb = document.getElementById(prefix+'_receiptThumb');
+    if(thumb){
+      thumb.addEventListener('click', function(){
+        var w = window.open('');
+        if(w) w.document.write('<title>영수증</title><body style="margin:0;background:#000;display:flex;"><img src="'+currentReceiptImage+'" style="max-width:100%;margin:auto;">');
+      });
+    }
+  }
+  function wireReceiptField(prefix){
+    wireReceiptButtons(prefix);
+    document.getElementById(prefix+'_receiptInput').addEventListener('change', function(ev){
+      var file = ev.target.files[0];
+      if(!file) return;
+      compressImageToDataURL(file, function(dataUrl){
+        currentReceiptImage = dataUrl;
+        refreshReceiptPreview(prefix);
+      });
+    });
+  }
+  function receiptFieldFullHTML(prefix){
+    var html = '<div class="field"><span class="field-label">영수증 사진 (선택)</span>';
+    html += '<input type="file" accept="image/*" id="'+prefix+'_receiptInput" style="display:none;">';
+    html += '<div id="'+prefix+'_receiptPreview">'+receiptPreviewHTML(prefix)+'</div>';
+    html += '</div>';
+    return html;
+  }
+
   function openExpenseForm(existing){
     editingExpenseId = existing ? existing.id : null;
     var e = existing || { category:'식사', paymentMethod:'법인카드' };
+    currentReceiptImage = e.receiptImage || null;
     var body = document.getElementById('expenseFormBody');
 
     var html = '';
@@ -2429,6 +2663,7 @@
 
     html += '<div class="field"><span class="field-label">메모</span><textarea id="ef_memo" placeholder="추가로 남길 내용">'+escapeHtml(e.memo||'')+'</textarea></div>';
     html += '<div class="field"><span class="field-label">참여자</span><input type="text" id="ef_participants" placeholder="예: 김철수, 이영희" value="'+escapeHtml(e.participants||'')+'"></div>';
+    html += receiptFieldFullHTML('ef');
 
     html += '<div class="row2">';
     html += '<button class="cancelbtn" id="ef_cancelBtn" type="button">취소</button>';
@@ -2439,6 +2674,7 @@
     }
 
     body.innerHTML = html;
+    wireReceiptField('ef');
 
     document.querySelectorAll('#ef_category .chip').forEach(function(c){
       c.addEventListener('click', function(){
@@ -2482,6 +2718,7 @@
       paymentMethod: (payEl && !payEl.disabled) ? payEl.value : '',
       memo: document.getElementById('ef_memo').value.trim(),
       participants: document.getElementById('ef_participants').value.trim(),
+      receiptImage: currentReceiptImage || null,
       createdAt: editingExpenseId ? (entries.find(function(x){return x.id===editingExpenseId;})||{}).createdAt || now : now,
       updatedAt: now
     };
@@ -2745,6 +2982,66 @@
     refreshAfterSave();
   }
 
+  // ---------- Task (업무일지) form ----------
+  var editingTaskId = null;
+  function openTaskForm(existing){
+    editingTaskId = existing ? existing.id : null;
+    var e = existing || {};
+    var body = document.getElementById('taskFormBody');
+
+    var html = '';
+    html += '<div class="field"><span class="field-label field-label-strong">📅 날짜</span><input type="date" id="tk_date" value="'+(e.date||selectedDate)+'"></div>';
+    html += '<div class="field"><span class="field-label field-label-strong">📝 오늘 한 일</span><textarea id="tk_content" placeholder="오늘 한 업무를 간단히 적어주세요" rows="4">'+escapeHtml(e.content||'')+'</textarea></div>';
+
+    html += '<div class="row2">';
+    html += '<button class="cancelbtn" id="tk_cancelBtn" type="button">취소</button>';
+    html += '<button class="savebtn" id="tk_saveBtn" type="button">'+(existing?'수정 저장':'업무일지 저장')+'</button>';
+    html += '</div>';
+    if(existing){
+      html += '<button class="danger" id="tk_deleteBtn" type="button" style="width:100%;margin-top:10px;">이 기록 삭제</button>';
+    }
+
+    body.innerHTML = html;
+
+    document.getElementById('tk_cancelBtn').addEventListener('click', function(){ closeSheet('taskSheet'); });
+    document.getElementById('tk_saveBtn').addEventListener('click', saveTaskForm);
+    var tkDelBtn = document.getElementById('tk_deleteBtn');
+    if(tkDelBtn){
+      tkDelBtn.addEventListener('click', async function(){
+        entries = entries.filter(function(x){ return x.id !== editingTaskId; });
+        await saveEntries();
+        closeSheet('taskSheet');
+        refreshAfterSave();
+      });
+    }
+    openSheet('taskSheet');
+  }
+  async function saveTaskForm(){
+    var content = document.getElementById('tk_content').value.trim();
+    if(!content){
+      document.getElementById('tk_content').focus();
+      return;
+    }
+    var now = new Date().toISOString();
+    var payload = {
+      id: editingTaskId || uid(),
+      type: 'task',
+      date: document.getElementById('tk_date').value || selectedDate,
+      content: content,
+      createdAt: editingTaskId ? (entries.find(function(x){return x.id===editingTaskId;})||{}).createdAt || now : now,
+      updatedAt: now
+    };
+    if(editingTaskId){
+      var idx = entries.findIndex(function(x){ return x.id === editingTaskId; });
+      if(idx >= 0) entries[idx] = payload; else entries.push(payload);
+    }else{
+      entries.push(payload);
+    }
+    await saveEntries();
+    closeSheet('taskSheet');
+    refreshAfterSave();
+  }
+
   // ---------- Welfare form ----------
   var editingWelfareId = null;
 
@@ -2772,7 +3069,7 @@
       html += '<p class="savehint" id="wf_limitHint">'+m.label+' 지원한도액: '+formatWon(limit)+'원 (설정에서 변경 가능)</p>';
       html += '<div class="field"><span class="field-label">정산현황</span><div class="chiprow" id="wf_settlement">';
       ['pending','done','none'].forEach(function(k){
-        html += '<button class="chip'+(e.settlementStatus===k?' selected':'')+'" data-val="'+k+'" type="button">'+SETTLEMENT_LABEL[k]+'</button>';
+        html += '<button class="chip'+((e.settlementStatus||'pending')===k?' selected':'')+'" data-val="'+k+'" type="button">'+SETTLEMENT_LABEL[k]+'</button>';
       });
       html += '</div></div>';
       html += '<div class="field" id="wf_depositField" style="display:'+(e.settlementStatus==='done'?'block':'none')+';"><span class="field-label">입금일</span><input type="date" id="wf_depositDate" value="'+(e.depositDate||'')+'"></div>';
@@ -2860,6 +3157,7 @@
   function openWelfareForm(existing){
     editingWelfareId = existing ? existing.id : null;
     var e = existing || { welfareType:'education', settlementStatus:'pending' };
+    currentReceiptImage = e.receiptImage || null;
     var body = document.getElementById('welfareFormBody');
 
     var html = '';
@@ -2871,6 +3169,7 @@
     });
     html += '</div></div>';
     html += '<div id="wf_dynamicFields">'+renderWelfareDynamicFieldsHTML(e.welfareType, e)+'</div>';
+    html += receiptFieldFullHTML('wf');
     html += '<div class="field"><span class="field-label">비고</span><textarea id="wf_memo" placeholder="추가로 남길 내용">'+escapeHtml(e.memo||'')+'</textarea></div>';
     html += '<div class="row2">';
     html += '<button class="cancelbtn" id="wf_cancelBtn" type="button">취소</button>';
@@ -2882,6 +3181,7 @@
 
     body.innerHTML = html;
     wireWelfareDynamicFields(e.welfareType);
+    wireReceiptField('wf');
 
     document.querySelectorAll('#wf_type .chip').forEach(function(c){
       c.addEventListener('click', function(){
@@ -2915,6 +3215,7 @@
       date: document.getElementById('wf_date').value || selectedDate,
       welfareType: welfareType,
       memo: document.getElementById('wf_memo').value.trim(),
+      receiptImage: currentReceiptImage || null,
       createdAt: editingWelfareId ? (entries.find(function(x){return x.id===editingWelfareId;})||{}).createdAt || now : now,
       updatedAt: now
     };
@@ -3184,6 +3485,39 @@
       renderMonthTypeSheet(currentMonthTypeSheetType);
     }
   }
+  function unescapeHtml(s){
+    var d = document.createElement('div');
+    d.innerHTML = s;
+    return d.textContent;
+  }
+  function exportToExcel(){
+    var filtered = statsFilteredEntries().slice().sort(function(a,b){ return a.date < b.date ? -1 : 1; });
+    if(filtered.length === 0){
+      var btn = document.getElementById('excelExportBtn');
+      var origText = btn.textContent;
+      btn.textContent = '내보낼 기록이 없어요';
+      setTimeout(function(){ btn.textContent = origText; }, 1800);
+      return;
+    }
+    var rows = filtered.map(function(e){
+      var meta = TYPE_META[e.type];
+      return {
+        '날짜': e.date,
+        '유형': meta.label,
+        '내용': unescapeHtml(recordSummary(e)),
+        '금액': e.type === 'task' ? '' : recordAmount(e),
+        '정산상태': e.settlementStatus ? (SETTLEMENT_LABEL[e.settlementStatus]||'') : '',
+        '입금일': e.depositDate || '',
+        '비고': e.note || e.memo || ''
+      };
+    });
+    var ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [{wch:12},{wch:8},{wch:40},{wch:12},{wch:10},{wch:12},{wch:24}];
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, '업무일지');
+    XLSX.writeFile(wb, '업무일지_'+todayStr()+'.xlsx');
+  }
+
   function statsFilteredEntries(){
     var range = getPeriodRange(statsPeriodMode);
     return entries.filter(function(e){
@@ -3193,6 +3527,81 @@
       if(range && (e.date < range.start || e.date > range.end)) return false;
       return true;
     });
+  }
+
+  function renderPeriodReportHTML(mode){
+    var range = getPeriodRange(mode);
+    var periodEntries = entries.filter(function(e){
+      return range && e.date >= range.start && e.date <= range.end;
+    });
+
+    var label = mode === 'specificyear' ? (statsSpecificYear+'년') :
+                mode === 'quarter' ? '이번 분기' :
+                mode === 'half' ? '이번 반기' : '올해';
+
+    var byType = { trip:{amt:0,cnt:0}, expense:{amt:0,cnt:0}, overtime:{amt:0,cnt:0}, welfare:{amt:0,cnt:0}, task:{amt:0,cnt:0} };
+    var totalAmt = 0;
+    periodEntries.forEach(function(e){
+      var amt = recordAmount(e);
+      if(byType[e.type]){
+        byType[e.type].amt += amt;
+        byType[e.type].cnt += 1;
+      }
+      totalAmt += amt;
+    });
+
+    var unsettledCount = periodEntries.filter(function(e){
+      return (e.type === 'trip' || e.type === 'welfare') && e.settlementStatus && e.settlementStatus !== 'done';
+    }).length;
+
+    var monthlyAmt = {};
+    periodEntries.forEach(function(e){
+      var ym = e.date.slice(0,7);
+      monthlyAmt[ym] = (monthlyAmt[ym]||0) + recordAmount(e);
+    });
+    var months = Object.keys(monthlyAmt).sort();
+    var maxMonthAmt = 0, peakMonth = null;
+    months.forEach(function(ym){
+      if(monthlyAmt[ym] > maxMonthAmt){ maxMonthAmt = monthlyAmt[ym]; peakMonth = ym; }
+    });
+
+    var html = '<div class="rule-card" style="margin-bottom:20px;">';
+    html += '<p style="font-weight:700;font-size:14px;margin:0 0 12px;text-align:center;">📊 '+label+' 결산</p>';
+    if(periodEntries.length === 0){
+      html += '<p class="empty-inline">이 기간엔 기록이 없어요.</p>';
+      html += '</div>';
+      return html;
+    }
+    html += '<div style="display:flex;justify-content:space-between;padding:4px 0;"><span>총 지출</span><b>'+formatWon(totalAmt)+'원</b></div>';
+    html += '<div style="display:flex;justify-content:space-between;padding:4px 0;"><span>총 기록</span><b>'+periodEntries.length+'건</b></div>';
+    html += '<div style="border-top:1px solid var(--line);margin:8px 0;"></div>';
+    ['trip','expense','overtime','welfare','task'].forEach(function(t){
+      var meta = TYPE_META[t];
+      var d = byType[t];
+      if(d.cnt === 0) return;
+      html += '<div style="display:flex;justify-content:space-between;padding:3px 0;font-size:13px;"><span>'+meta.icon+' '+meta.label+'</span><span>'+(t==='task'?'':formatWon(d.amt)+'원 · ')+d.cnt+'건</span></div>';
+    });
+    if(months.length > 1){
+      html += '<div style="border-top:1px solid var(--line);margin:10px 0 8px;"></div>';
+      html += '<p style="font-size:12px;color:var(--ink-faint);margin-bottom:6px;">월별 지출</p>';
+      months.forEach(function(ym){
+        var pct = maxMonthAmt > 0 ? (monthlyAmt[ym]/maxMonthAmt*100) : 0;
+        var mLabel = parseInt(ym.slice(5,7),10)+'월';
+        html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">';
+        html += '<span style="font-size:11px;color:var(--ink-soft);width:28px;">'+mLabel+'</span>';
+        html += '<div style="flex:1;background:var(--paper);border-radius:4px;height:14px;overflow:hidden;"><div style="width:'+pct+'%;background:var(--pine);height:100%;"></div></div>';
+        html += '<span style="font-size:11px;color:var(--ink-soft);min-width:60px;text-align:right;">'+formatWon(monthlyAmt[ym])+'원</span>';
+        html += '</div>';
+      });
+    }
+    if(peakMonth){
+      html += '<p style="font-size:12px;color:var(--ink-faint);margin-top:10px;">🏆 지출이 가장 많았던 달: '+(parseInt(peakMonth.slice(5,7),10))+'월 ('+formatWon(maxMonthAmt)+'원)</p>';
+    }
+    if(unsettledCount > 0){
+      html += '<p style="font-size:12px;color:var(--brick);margin-top:4px;">📋 정산 미완료 '+unsettledCount+'건</p>';
+    }
+    html += '</div>';
+    return html;
   }
 
   function renderStatsScreen(){
@@ -3210,9 +3619,13 @@
     html += '<button class="chip'+(statsPeriodMode==='specificyear'?' selected':'')+'" id="statsYearPickBtn" type="button">'+yearPickLabel+'</button>';
     html += '</div>';
 
+    if(['specificyear','quarter','half','year'].indexOf(statsPeriodMode) !== -1){
+      html += renderPeriodReportHTML(statsPeriodMode);
+    }
+
     html += '<p class="field-label field-label-strong">🏷️ 유형</p>';
     html += '<div class="chiprow" id="statsTypeChips" style="margin-bottom:20px;">';
-    [['all','전체'],['trip','✈️ 출장'],['expense','💳 경비'],['overtime','🌙 야근'],['welfare','🎁 복지비']].forEach(function(t){
+    [['all','전체'],['trip','✈️ 출장'],['expense','💳 경비'],['overtime','🌙 야근'],['welfare','🎁 복지비'],['task','📝 업무']].forEach(function(t){
       html += '<button class="chip'+(statsTypeMode===t[0]?' selected':'')+'" data-val="'+t[0]+'" type="button">'+t[1]+'</button>';
     });
     html += '</div>';
@@ -3224,6 +3637,7 @@
     });
     var breakdown = { trip:{count:0,amount:0}, expense:{count:0,amount:0}, overtime:{count:0,amount:0}, welfare:{count:0,amount:0} };
     periodEntries.forEach(function(e){
+      if(!breakdown[e.type]) return;
       breakdown[e.type].count++;
       breakdown[e.type].amount += recordAmount(e);
     });
@@ -3343,7 +3757,10 @@
     }
 
     var filtered = statsFilteredEntries();
-    html += '<p class="card-title">목록 ('+filtered.length+'건)</p>';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;">';
+    html += '<p class="card-title" style="margin-bottom:0;padding-top:0;border-top:none;">목록 ('+filtered.length+'건)</p>';
+    html += '<button class="cancelbtn" id="excelExportBtn" type="button" style="padding:8px 12px;font-size:12.5px;">📊 엑셀로 내보내기</button>';
+    html += '</div>';
     html += '<div id="statsListWrap"></div>';
 
     body.innerHTML = html;
@@ -3362,6 +3779,7 @@
     document.getElementById('statsYearPickBtn').addEventListener('click', function(){
       openDatePicker('statsyear');
     });
+    document.getElementById('excelExportBtn').addEventListener('click', exportToExcel);
     document.querySelectorAll('#statsTypeChips .chip').forEach(function(c){
       c.addEventListener('click', function(){
         statsTypeMode = c.getAttribute('data-val');
@@ -3414,7 +3832,9 @@
         html += '<div class="record-item">';
         html += '<div class="record-top">';
         html += '<span class="record-badge '+e.type+'">'+meta.icon+' '+meta.label+'</span>';
-        html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
+        if(e.type !== 'task'){
+          html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
+        }
         html += '</div>';
         html += '<p class="record-sub">'+niceDate(e.date)+' · '+recordSummary(e)+'</p>';
         var isConfirming = monthTypeConfirmDeleteId === e.id;
@@ -3441,6 +3861,7 @@
         if(entry.type === 'trip') openTripForm(entry);
         else if(entry.type === 'expense') openExpenseForm(entry);
         else if(entry.type === 'welfare') openWelfareForm(entry);
+        else if(entry.type === 'task') openTaskForm(entry);
         else openOvertimeForm(entry);
       });
     });
@@ -3486,7 +3907,9 @@
         html += '<div class="record-item">';
         html += '<div class="record-top">';
         html += '<span class="record-badge '+e.type+'">'+meta.icon+' '+meta.label+'</span>';
-        html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
+        if(e.type !== 'task'){
+          html += '<span class="record-amt">'+formatWon(recordAmount(e))+'원</span>';
+        }
         html += '</div>';
         html += '<p class="record-sub">'+niceDate(e.date)+' · '+recordSummary(e)+'</p>';
         if(e.type === 'trip'){
@@ -3557,6 +3980,7 @@
         if(entry.type === 'trip') openTripForm(entry);
         else if(entry.type === 'expense') openExpenseForm(entry);
         else if(entry.type === 'welfare') openWelfareForm(entry);
+        else if(entry.type === 'task') openTaskForm(entry);
         else openOvertimeForm(entry);
       });
     });
@@ -3608,6 +4032,7 @@
     document.getElementById('expenseCloseBtn').addEventListener('click', function(){ closeSheet('expenseSheet'); });
     document.getElementById('overtimeCloseBtn').addEventListener('click', function(){ closeSheet('overtimeSheet'); });
     document.getElementById('welfareCloseBtn').addEventListener('click', function(){ closeSheet('welfareSheet'); });
+    document.getElementById('taskCloseBtn').addEventListener('click', function(){ closeSheet('taskSheet'); });
     document.getElementById('datePickerCloseBtn').addEventListener('click', function(){ closeSheet('datePickerSheet'); });
     document.getElementById('settingsCloseBtn').addEventListener('click', function(){ closeSheet('settingsSheet'); });
     document.getElementById('expenseSettingsRowBtn').addEventListener('click', function(){
@@ -3762,6 +4187,7 @@
       welfareLimits = await loadWelfareLimits();
       tenureAmounts = await loadTenureAmounts();
       monthlyBudget = await loadMonthlyBudget();
+      budgetWarningPct = await loadBudgetWarningPct();
       var backupReminderData = await loadBackupReminder();
       backupReminderDays = backupReminderData.days != null ? backupReminderData.days : 7;
       lastBackupDate = backupReminderData.last || null;
