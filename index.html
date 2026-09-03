@@ -446,6 +446,12 @@
     color:var(--ink);
   }
   textarea{ resize:vertical; min-height:60px; }
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="time"]::-webkit-calendar-picker-indicator{
+    filter: invert(48%) sepia(90%) saturate(1000%) hue-rotate(1deg) brightness(95%) contrast(90%);
+    cursor:pointer;
+    opacity:1;
+  }
   .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .row4{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
   @media (max-width:420px){ .row4{ grid-template-columns:repeat(2,1fr); } }
@@ -1935,7 +1941,8 @@
     html += '<button class="chip'+(e.regionType!=='overseas'?' selected':'')+'" data-val="domestic" type="button">국내</button>';
     html += '<button class="chip'+(e.regionType==='overseas'?' selected':'')+'" data-val="overseas" type="button">해외</button>';
     html += '</div></div>';
-    html += '<input type="text" id="tf_region" placeholder="예: 대전 사업장" value="'+escapeHtml(e.region||'')+'">';
+    html += '<div style="display:flex;gap:8px;"><input type="text" id="tf_region" placeholder="예: 대전 사업장" value="'+escapeHtml(e.region||'')+'" style="flex:1;"><button class="cancelbtn" id="tf_regionSearchBtn" type="button" style="white-space:nowrap;padding:11px 14px;">🔍 검색</button></div>';
+    html += '<div id="tf_regionResults"></div>';
     html += '</div>';
 
     html += '<div class="row2"><div class="field"><span class="field-label">출장일수1</span><input type="number" id="tf_days1" value="'+(e.days1!=null?e.days1:'')+'"></div><div class="field"><span class="field-label">출장일수2</span><input type="number" id="tf_days2" value="'+(e.days2!=null?e.days2:'')+'"></div></div>';
@@ -2052,6 +2059,7 @@
     }
   }
   function wireTripFormEvents(e){
+    wireLocationSearch('tf_region', 'tf_regionSearchBtn', 'tf_regionResults');
     document.querySelectorAll('#tf_regionType .chip').forEach(function(c){
       c.addEventListener('click', function(){
         document.querySelectorAll('#tf_regionType .chip').forEach(function(x){ x.classList.remove('selected'); });
@@ -3606,6 +3614,59 @@
   // ---------- Welfare form ----------
   var editingWelfareId = null;
 
+  function wireLocationSearch(inputId, buttonId, resultsId){
+    var searchBtn = document.getElementById(buttonId);
+    if(!searchBtn) return;
+    searchBtn.addEventListener('click', async function(){
+      var inp = document.getElementById(inputId);
+      var resultsEl = document.getElementById(resultsId);
+      var query = inp.value.trim();
+      if(!query){
+        resultsEl.innerHTML = '<p class="toast" style="color:var(--brick);">검색어를 입력해주세요</p>';
+        return;
+      }
+      resultsEl.innerHTML = '<p class="savehint">검색 중…</p>';
+      try{
+        var res = await fetch('/api/kakao-search?query=' + encodeURIComponent(query));
+        var rawText = await res.text();
+        var data;
+        try{ data = JSON.parse(rawText); }catch(e){
+          throw new Error('서버 응답 오류 (HTTP '+res.status+')');
+        }
+        if(!res.ok || data.error){
+          throw new Error(data.error || ('서버 오류 (HTTP '+res.status+')'));
+        }
+        if(!data.results || data.results.length === 0){
+          resultsEl.innerHTML = '<p class="savehint">검색 결과가 없어요.</p>';
+          return;
+        }
+        var html = '';
+        data.results.forEach(function(r, i){
+          html += '<div class="location-result-item" data-idx="'+i+'">';
+          html += '<div class="location-result-name">'+escapeHtml(r.name)+'</div>';
+          html += '<div class="location-result-addr">'+escapeHtml(r.address)+'</div>';
+          html += '</div>';
+        });
+        resultsEl.innerHTML = html;
+        resultsEl.querySelectorAll('.location-result-item').forEach(function(item){
+          item.addEventListener('click', function(){
+            var idx = parseInt(item.getAttribute('data-idx'), 10);
+            inp.value = data.results[idx].name;
+            resultsEl.innerHTML = '';
+          });
+        });
+      }catch(err){
+        resultsEl.innerHTML = '<p class="toast" style="color:var(--brick);">검색 실패: '+(err && err.message ? err.message : err)+'</p>';
+      }
+    });
+  }
+  function locationSearchFieldHTML(label, inputId, btnId, resultsId, value, placeholder){
+    var html = '<div class="field"><span class="field-label field-label-strong">'+label+'</span>';
+    html += '<div style="display:flex;gap:8px;"><input type="text" id="'+inputId+'" placeholder="'+(placeholder||'')+'" value="'+escapeHtml(value||'')+'" style="flex:1;">';
+    html += '<button class="cancelbtn" id="'+btnId+'" type="button" style="white-space:nowrap;padding:11px 14px;">🔍 검색</button></div>';
+    html += '<div id="'+resultsId+'"></div></div>';
+    return html;
+  }
   function renderWelfareDynamicFieldsHTML(type, e){
     var html = '';
     if(type === 'tenure'){
@@ -3621,9 +3682,13 @@
       html += '<div class="field"><span class="field-label">포상휴가(일)</span><input type="number" id="wf_vacationDays" value="'+(e.vacationDays!=null?e.vacationDays:0)+'"></div>';
     }else{
       var m = WELFARE_TYPE_META[type];
-      html += '<div class="field"><span class="field-label field-label-strong">'+escapeHtml(m.nameLabel)+'</span><input type="text" id="wf_itemName" value="'+escapeHtml(e.itemName||'')+'"></div>';
+      if(type === 'checkup' || type === 'travel'){
+        html += locationSearchFieldHTML(m.nameLabel, 'wf_itemName', 'wf_itemNameSearchBtn', 'wf_itemNameResults', e.itemName, type==='checkup'?'예: 서울대병원':'예: 제주도');
+      }else{
+        html += '<div class="field"><span class="field-label field-label-strong">'+escapeHtml(m.nameLabel)+'</span><input type="text" id="wf_itemName" value="'+escapeHtml(e.itemName||'')+'"></div>';
+      }
       if(m.hasLocation){
-        html += '<div class="field"><span class="field-label">교육장소</span><div class="symbol-row" style="display:flex;gap:8px;"><input type="text" id="wf_location" value="'+escapeHtml(e.location||'')+'" style="flex:1;"><button class="cancelbtn" id="wf_locationSearchBtn" type="button" style="white-space:nowrap;padding:11px 14px;">🔍 검색</button></div><div id="wf_locationResults"></div></div>';
+        html += locationSearchFieldHTML('교육장소', 'wf_location', 'wf_locationSearchBtn', 'wf_locationResults', e.location, '예: 강남 캠퍼스');
       }
       html += '<div class="field"><span class="field-label field-label-strong">💰 금액(원)</span><div style="display:flex;align-items:center;gap:8px;"><input type="number" id="wf_amount" value="'+(e.amount!=null?e.amount:'')+'" style="flex:1;"><span id="wf_amountWarning" style="font-size:20px;display:none;">⚠️</span></div></div>';
       var limit = welfareLimits[type] || 0;
@@ -3669,51 +3734,8 @@
       });
       wfAmountInp.dispatchEvent(new Event('input'));
     }
-    var locSearchBtn = document.getElementById('wf_locationSearchBtn');
-    if(locSearchBtn){
-      locSearchBtn.addEventListener('click', async function(){
-        var locInp = document.getElementById('wf_location');
-        var resultsEl = document.getElementById('wf_locationResults');
-        var query = locInp.value.trim();
-        if(!query){
-          resultsEl.innerHTML = '<p class="toast" style="color:var(--brick);">검색어를 입력해주세요</p>';
-          return;
-        }
-        resultsEl.innerHTML = '<p class="savehint">검색 중…</p>';
-        try{
-          var res = await fetch('/api/kakao-search?query=' + encodeURIComponent(query));
-          var rawText = await res.text();
-          var data;
-          try{ data = JSON.parse(rawText); }catch(e){
-            throw new Error('서버 응답 오류 (HTTP '+res.status+')');
-          }
-          if(!res.ok || data.error){
-            throw new Error(data.error || ('서버 오류 (HTTP '+res.status+')'));
-          }
-          if(!data.results || data.results.length === 0){
-            resultsEl.innerHTML = '<p class="savehint">검색 결과가 없어요.</p>';
-            return;
-          }
-          var html = '';
-          data.results.forEach(function(r, i){
-            html += '<div class="location-result-item" data-idx="'+i+'">';
-            html += '<div class="location-result-name">'+escapeHtml(r.name)+'</div>';
-            html += '<div class="location-result-addr">'+escapeHtml(r.address)+'</div>';
-            html += '</div>';
-          });
-          resultsEl.innerHTML = html;
-          resultsEl.querySelectorAll('.location-result-item').forEach(function(item){
-            item.addEventListener('click', function(){
-              var idx = parseInt(item.getAttribute('data-idx'), 10);
-              locInp.value = data.results[idx].name;
-              resultsEl.innerHTML = '';
-            });
-          });
-        }catch(err){
-          resultsEl.innerHTML = '<p class="toast" style="color:var(--brick);">검색 실패: '+(err && err.message ? err.message : err)+'</p>';
-        }
-      });
-    }
+    wireLocationSearch('wf_location', 'wf_locationSearchBtn', 'wf_locationResults');
+    wireLocationSearch('wf_itemName', 'wf_itemNameSearchBtn', 'wf_itemNameResults');
   }
   function openWelfareForm(existing){
     editingWelfareId = existing ? existing.id : null;
