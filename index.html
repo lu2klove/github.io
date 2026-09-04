@@ -896,6 +896,7 @@
   .year-label{ font-size:20px; font-weight:700; }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
 
@@ -904,25 +905,29 @@
     <div id="setupView" style="display:none;">
       <p class="eyebrow">WORK JOURNAL · V1.0</p>
       <h1 style="margin-bottom:18px;">💼 업무일지</h1>
-      <p class="subtitle">사용할 비밀번호를 정해주세요</p>
-      <input type="password" id="setupPw1" placeholder="비밀번호 (4자 이상)">
-      <input type="password" id="setupPw2" placeholder="비밀번호 확인">
-      <button class="savebtn" id="setupBtn" type="button">비밀번호 설정하고 시작</button>
+      <p class="subtitle">계정을 만들어주세요</p>
+      <input type="email" id="setupEmail" placeholder="이메일" autocomplete="email">
+      <input type="password" id="setupPw1" placeholder="비밀번호 (6자 이상)" autocomplete="new-password">
+      <input type="password" id="setupPw2" placeholder="비밀번호 확인" autocomplete="new-password">
+      <button class="savebtn" id="setupBtn" type="button">계정 만들고 시작</button>
       <p class="toast" id="setupErr" style="color:var(--brick);"></p>
-      <p class="savehint">이 폰이 아닌 다른 곳에서 열면 비밀번호를 새로 설정하게 돼요</p>
+      <p class="savehint">이 계정으로 PC·모바일 어디서든 같은 기록을 볼 수 있어요</p>
+      <button class="toggle-link" id="goToLoginBtn" type="button">이미 계정이 있어요</button>
     </div>
     <div id="loginView" style="display:none;">
       <p class="eyebrow">WORK JOURNAL · V1.0</p>
       <h1 style="margin-bottom:18px;">💼 업무일지</h1>
-      <p class="subtitle">비밀번호를 입력해주세요</p>
-      <input type="password" id="loginPw" placeholder="비밀번호">
-      <button class="savebtn" id="loginBtn" type="button">확인</button>
+      <p class="subtitle">로그인해주세요</p>
+      <input type="email" id="loginEmail" placeholder="이메일" autocomplete="email">
+      <input type="password" id="loginPw" placeholder="비밀번호" autocomplete="current-password">
+      <button class="savebtn" id="loginBtn" type="button">로그인</button>
       <p class="toast" id="loginErr" style="color:var(--brick);"></p>
       <button class="toggle-link" id="forgotBtn" type="button">비밀번호를 잊으셨나요?</button>
       <div id="forgotConfirm" style="display:none;margin-top:10px;">
-        <p class="toast" style="color:var(--brick);">비밀번호를 초기화하면 새로 설정해야 해요. 기록은 그대로 남아있어요.</p>
-        <button class="cancelbtn" id="forgotConfirmBtn" type="button" style="width:100%;">초기화하고 새로 설정</button>
+        <p class="toast">가입하신 이메일로 비밀번호 재설정 링크를 보내드려요.</p>
+        <button class="cancelbtn" id="forgotConfirmBtn" type="button" style="width:100%;">재설정 메일 보내기</button>
       </div>
+      <button class="toggle-link" id="goToSetupBtn" type="button">계정이 없으신가요? 만들기</button>
     </div>
   </div>
 </div>
@@ -1379,36 +1384,6 @@
     return 'e' + Date.now() + Math.random().toString(36).slice(2,8);
   }
 
-  // ---------- Password hashing ----------
-  async function hashPassword(pw){
-    var enc = new TextEncoder().encode(pw);
-    var buf = await crypto.subtle.digest('SHA-256', enc);
-    return Array.from(new Uint8Array(buf)).map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
-  }
-  async function getStoredHash(){
-    if(hasClaudeStorage()){
-      try{
-        var res = await window.storage.get(HASH_KEY, false);
-        return (res && res.value) ? res.value : null;
-      }catch(e){ return null; }
-    }
-    try{ return localStorage.getItem(HASH_LOCAL_KEY); }catch(e){ return null; }
-  }
-  async function setStoredHash(hash){
-    if(hasClaudeStorage()){
-      try{ await window.storage.set(HASH_KEY, hash, false); }catch(e){}
-      return;
-    }
-    try{ localStorage.setItem(HASH_LOCAL_KEY, hash); }catch(e){}
-  }
-  async function clearStoredHash(){
-    if(hasClaudeStorage()){
-      try{ await window.storage.delete(HASH_KEY, false); }catch(e){}
-      return;
-    }
-    try{ localStorage.removeItem(HASH_LOCAL_KEY); }catch(e){}
-  }
-
   // ---------- Entries storage ----------
   async function loadEntries(){
     if(hasClaudeStorage()){
@@ -1531,6 +1506,10 @@
     }
   }
   // ---------- Lock / login ----------
+  var SUPABASE_URL = 'https://vrvcbyovybovokfynpdl.supabase.co';
+  var SUPABASE_ANON_KEY = 'sb_publishable_LQyZoHNRlMkJAXiIlfBrhw_G8aL_YoH';
+  var supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
   function unlockApp(){
     document.getElementById('lockScreen').style.display = 'none';
     document.getElementById('mainApp').style.display = 'block';
@@ -1540,31 +1519,48 @@
     document.getElementById('setupView').style.display = 'block';
     document.getElementById('loginView').style.display = 'none';
   }
+  function showLoginView(){
+    document.getElementById('setupView').style.display = 'none';
+    document.getElementById('loginView').style.display = 'block';
+  }
   async function attemptLogin(){
-    var hash = await getStoredHash();
+    var email = document.getElementById('loginEmail').value.trim();
     var pw = document.getElementById('loginPw').value;
     var err = document.getElementById('loginErr');
-    var h = await hashPassword(pw);
-    if(hash && h === hash){
-      unlockApp();
-    }else{
-      err.textContent = '비밀번호가 틀렸어요';
-      document.getElementById('loginPw').value = '';
+    err.style.color = 'var(--brick)';
+    err.textContent = '';
+    if(!email || !pw){ err.textContent = '이메일과 비밀번호를 입력해주세요'; return; }
+    var res = await supabaseClient.auth.signInWithPassword({ email: email, password: pw });
+    if(res.error){
+      err.textContent = (res.error.message === 'Invalid login credentials') ? '이메일 또는 비밀번호가 틀렸어요' : res.error.message;
+      return;
     }
+    unlockApp();
   }
   async function doSetupSubmit(){
+    var email = document.getElementById('setupEmail').value.trim();
     var p1 = document.getElementById('setupPw1').value;
     var p2 = document.getElementById('setupPw2').value;
     var err = document.getElementById('setupErr');
-    if(p1.length < 4){ err.textContent = '4자 이상 입력해주세요'; return; }
+    err.style.color = 'var(--brick)';
+    err.textContent = '';
+    if(!email){ err.textContent = '이메일을 입력해주세요'; return; }
+    if(p1.length < 6){ err.textContent = '비밀번호는 6자 이상이어야 해요'; return; }
     if(p1 !== p2){ err.textContent = '두 비밀번호가 서로 달라요'; return; }
-    var h = await hashPassword(p1);
-    await setStoredHash(h);
-    unlockApp();
+    var res = await supabaseClient.auth.signUp({ email: email, password: p1 });
+    if(res.error){
+      err.textContent = res.error.message;
+      return;
+    }
+    if(res.data.session){
+      unlockApp();
+    }else{
+      err.style.color = 'var(--pine)';
+      err.textContent = '가입 확인 메일을 보냈어요. 메일함에서 링크를 눌러 인증한 뒤 로그인해주세요.';
+    }
   }
   function wireLoginHandlers(){
-    document.getElementById('setupView').style.display = 'none';
-    document.getElementById('loginView').style.display = 'block';
+    showLoginView();
     document.getElementById('loginBtn').onclick = attemptLogin;
     document.getElementById('loginPw').onkeydown = function(ev){
       if(ev.key === 'Enter') attemptLogin();
@@ -1574,14 +1570,23 @@
       box.style.display = (box.style.display === 'none') ? 'block' : 'none';
     };
     document.getElementById('forgotConfirmBtn').onclick = async function(){
-      await clearStoredHash();
-      document.getElementById('forgotConfirm').style.display = 'none';
+      var email = document.getElementById('loginEmail').value.trim();
+      if(!email){
+        document.getElementById('loginErr').textContent = '이메일을 먼저 입력해주세요';
+        return;
+      }
+      await supabaseClient.auth.resetPasswordForEmail(email);
+      document.getElementById('forgotConfirm').innerHTML = '<p class="toast" style="color:var(--pine);">재설정 메일을 보냈어요. 메일함을 확인해주세요.</p>';
+    };
+    document.getElementById('goToSetupBtn').onclick = function(){
       showSetupView();
       document.getElementById('setupBtn').onclick = doSetupSubmit;
     };
   }
-  function logout(){
+  async function logout(){
+    await supabaseClient.auth.signOut();
     wireLoginHandlers();
+    document.getElementById('loginEmail').value = '';
     document.getElementById('loginPw').value = '';
     document.getElementById('loginErr').textContent = '';
     document.getElementById('forgotConfirm').style.display = 'none';
@@ -1592,12 +1597,14 @@
   function initLock(){
     return new Promise(function(resolve){
       lockResolve = resolve;
-      getStoredHash().then(function(hash){
-        if(!hash){
-          showSetupView();
-          document.getElementById('setupBtn').onclick = doSetupSubmit;
+      supabaseClient.auth.getSession().then(function(res){
+        if(res.data && res.data.session){
+          unlockApp();
         }else{
           wireLoginHandlers();
+          document.getElementById('goToLoginBtn').onclick = function(){
+            wireLoginHandlers();
+          };
         }
       });
     });
@@ -4431,7 +4438,6 @@
 
   // ---------- Backup ----------
   async function exportBackup(){
-    var passwordHash = await getStoredHash();
     var data = {
       entries: entries,
       expenseCategories: expenseCategories,
@@ -4449,7 +4455,6 @@
       employeeWorkLocations: employeeWorkLocations,
       attendanceTypes: attendanceTypes,
       evaluations: evaluations,
-      passwordHash: passwordHash,
       exportedAt: new Date().toISOString(),
       app:'work-journal',
       version:3
@@ -4547,10 +4552,6 @@
           await saveEvaluations();
         }
         var pwRestored = false;
-        if(data.passwordHash){
-          await setStoredHash(data.passwordHash);
-          pwRestored = true;
-        }
         renderCalendar();
         renderDayDetail();
         t.style.color = 'var(--pine)';
@@ -5502,10 +5503,14 @@
       var p1 = document.getElementById('newPw1').value;
       var p2 = document.getElementById('newPw2').value;
       var t = document.getElementById('pwToast');
-      if(p1.length < 4){ t.style.color='var(--brick)'; t.textContent = '4자 이상 입력해주세요'; return; }
+      if(p1.length < 6){ t.style.color='var(--brick)'; t.textContent = '비밀번호는 6자 이상이어야 해요'; return; }
       if(p1 !== p2){ t.style.color='var(--brick)'; t.textContent = '두 비밀번호가 서로 달라요'; return; }
-      var h = await hashPassword(p1);
-      await setStoredHash(h);
+      var res = await supabaseClient.auth.updateUser({ password: p1 });
+      if(res.error){
+        t.style.color='var(--brick)';
+        t.textContent = res.error.message;
+        return;
+      }
       t.style.color='var(--pine)';
       t.textContent = '변경됐어요';
       setTimeout(function(){
