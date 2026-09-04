@@ -325,6 +325,13 @@
     font-size:9px;
     line-height:1;
   }
+  .specialnote-mark{
+    position:absolute;
+    bottom:-2px;
+    right:-1px;
+    font-size:9px;
+    line-height:1;
+  }
   .cell .dot{
     width:5px; height:5px;
     border-radius:50%;
@@ -1813,11 +1820,20 @@
       if(hasUnsettledTrip){
         cell.classList.add('unsettled');
       }
-      var hasImportantAttendance = dayEntries.some(function(e){
-        return e.type === 'attendance' && e.important;
+      var hasImportantMark = dayEntries.some(function(e){
+        return (e.type === 'attendance' || e.type === 'task') && e.important;
       });
-      if(hasImportantAttendance){
+      if(hasImportantMark){
         cell.classList.add('important-marked');
+      }
+      var hasSpecialNoteMark = dayEntries.some(function(e){
+        return e.type === 'task' && e.hasSpecialNote;
+      });
+      if(hasSpecialNoteMark){
+        var specialMark = document.createElement('span');
+        specialMark.className = 'specialnote-mark';
+        specialMark.textContent = '🚨';
+        cell.appendChild(specialMark);
       }
       if(dayEntries.length === 1){
         var singleBadge = document.createElement('div');
@@ -2044,7 +2060,15 @@
       return escapeHtml(p4.join(' · ') || '복지비 기록');
     }
     if(e.type === 'task'){
-      return escapeHtml((e.content||'').slice(0,60));
+      var taskParts = [];
+      if(e.important) taskParts.push('⭐');
+      if(e.hasSpecialNote) taskParts.push('🚨');
+      taskParts.push((e.content||'').slice(0,60));
+      var summary = escapeHtml(taskParts.join(' '));
+      if(e.hasSpecialNote && e.specialNote){
+        summary += '<br><span style="color:var(--brick);">특이사항: '+escapeHtml(e.specialNote.slice(0,60))+'</span>';
+      }
+      return summary;
     }
     if(e.type === 'attendance'){
       var emp = employees.find(function(x){ return x.id === e.employeeId; });
@@ -4040,7 +4064,10 @@
 
     var html = '';
     html += '<div class="field"><span class="field-label field-label-strong">📅 날짜</span><input type="date" id="tk_date" value="'+(e.date||selectedDate)+'"></div>';
+    html += '<label class="checklist-item"><input type="checkbox" id="tk_important"'+(e.important?' checked':'')+'><span>⭐ 중요 표시 (달력에 마크로 보여요)</span></label>';
     html += '<div class="field"><span class="field-label field-label-strong">📝 오늘 한 일</span><textarea id="tk_content" placeholder="오늘 한 업무를 간단히 적어주세요" rows="4">'+escapeHtml(e.content||'')+'</textarea></div>';
+    html += '<label class="checklist-item"><input type="checkbox" id="tk_hasSpecialNote"'+(e.hasSpecialNote?' checked':'')+'><span>🚨 특이사항 (달력에 마크로 보여요)</span></label>';
+    html += '<div class="field"><span class="field-label field-label-strong">특이사항</span><textarea id="tk_specialNote" placeholder="특이사항이 있다면 적어주세요" rows="3">'+escapeHtml(e.specialNote||'')+'</textarea></div>';
 
     html += '<div class="row2">';
     html += '<button class="cancelbtn" id="tk_cancelBtn" type="button">취소</button>';
@@ -4077,6 +4104,9 @@
       type: 'task',
       date: document.getElementById('tk_date').value || selectedDate,
       content: content,
+      important: document.getElementById('tk_important').checked,
+      hasSpecialNote: document.getElementById('tk_hasSpecialNote').checked,
+      specialNote: document.getElementById('tk_specialNote').value.trim(),
       createdAt: editingTaskId ? (entries.find(function(x){return x.id===editingTaskId;})||{}).createdAt || now : now,
       updatedAt: now
     };
