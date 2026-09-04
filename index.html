@@ -1927,16 +1927,27 @@
     html += '<button class="tagbtn attendance" id="addAttendanceBtn" type="button"><span class="tagicon">🗓️</span>근무기록</button>';
     html += '</div>';
 
+    var DAY_DETAIL_TYPE_ORDER = { task:0, attendance:1, trip:2, expense:3, overtime:4, welfare:5 };
     var dayEntries = entriesForDate(selectedDate).slice().sort(function(a,b){
+      var orderA = DAY_DETAIL_TYPE_ORDER[a.type] != null ? DAY_DETAIL_TYPE_ORDER[a.type] : 99;
+      var orderB = DAY_DETAIL_TYPE_ORDER[b.type] != null ? DAY_DETAIL_TYPE_ORDER[b.type] : 99;
+      if(orderA !== orderB) return orderA - orderB;
       return (a.createdAt||'') < (b.createdAt||'') ? 1 : -1;
     });
 
     if(dayEntries.length === 0){
       html += '<p class="empty-inline">아직 기록이 없어요. 위 버튼으로 추가해보세요.</p>';
     }else{
+      var lastRenderedType = null;
       dayEntries.forEach(function(e){
         var meta = TYPE_META[e.type];
         var isConfirming = confirmDeleteId === e.id;
+        if(e.type !== lastRenderedType){
+          if(lastRenderedType !== null){
+            html += '<div style="border-top:1px solid var(--line);margin:14px 0;"></div>';
+          }
+          lastRenderedType = e.type;
+        }
         html += '<div class="record-item">';
         html += '<div class="record-top">';
         html += '<span class="record-badge '+e.type+'">'+meta.icon+' '+meta.label+'</span>';
