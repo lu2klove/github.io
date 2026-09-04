@@ -486,7 +486,7 @@
     display:block;
   }
   .field-label-strong{ font-weight:700; color:var(--ink); font-size:13.5px; }
-  input[type="text"], input[type="number"], input[type="date"], input[type="time"], input[type="password"], select, textarea{
+  input[type="text"], input[type="number"], input[type="date"], input[type="time"], input[type="password"], input[type="email"], select, textarea{
     width:100%;
     font-family:'IBM Plex Sans KR',sans-serif;
     font-size:14px;
@@ -935,7 +935,7 @@
 <div class="app" id="mainApp" style="display:none;">
   <p class="eyebrow">WORK JOURNAL · V1.0</p>
   <div class="header-row">
-    <h1>💼 업무일지</h1>
+    <h1 id="appTitle" style="cursor:pointer;">💼 업무일지</h1>
     <div style="display:flex;gap:8px;">
       <button class="assetbtn" id="statsOpenBtn" type="button">📊 통계</button>
       <button class="assetbtn" id="hrOpenBtn" type="button">🧑‍💼 인사관리</button>
@@ -1029,7 +1029,7 @@
   <div class="side-header">
     <button class="side-back" id="employeeSettingsBackBtn" type="button">‹ 뒤로</button>
     <span class="side-title">👤 직원 등록</span>
-    <button class="side-back" id="employeeOptionsBtn" type="button" aria-label="등록관리">🗂️</button>
+    <span style="width:44px;"></span>
   </div>
   <div class="side-scroll-wrap">
     <div class="side-body" id="employeeSettingsBody"></div>
@@ -1168,6 +1168,14 @@
   <div id="otSettingsBody"></div>
 </div>
 
+<div class="bottom-sheet" id="attendTimeSettingsSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">🕐 근무기록 시간관리</span>
+    <button class="sheet-close" id="attendTimeSettingsCloseBtn" type="button">✕</button>
+  </div>
+  <div id="attendTimeSettingsBody"></div>
+</div>
+
 <!-- 복지비 설정 -->
 <div class="bottom-sheet" id="welfareSettingsSheet">
   <div class="sheet-head">
@@ -1246,6 +1254,22 @@
     <button class="cancelbtn" id="welfareSettingsRowBtn" type="button" style="width:100%;text-align:left;">교육비 · 건강검진비 · 여행비 지원금 관리 ›</button>
   </div>
 
+  <p class="card-title">🗓️ 근무기록</p>
+  <div class="ios-list" style="margin-bottom:8px;">
+    <button class="cancelbtn" id="attendTimeSettingsRowBtn" type="button" style="width:100%;text-align:left;">근무형태별 시간관리 ›</button>
+  </div>
+
+  <p class="card-title">🗂️ 등록관리</p>
+  <div class="ios-list" style="margin-bottom:8px;">
+    <button class="cancelbtn" id="employeeOptionsRowBtn" type="button" style="width:100%;text-align:left;">회사명 · 부서명 · 프로젝트 · 직무 · 근무지 · 근무형태 관리 ›</button>
+  </div>
+
+  <p class="card-title">🔔 알림설정</p>
+  <label class="checklist-item"><input type="checkbox" id="notifSettlement" checked><span>정산 미완료 알림</span></label>
+  <label class="checklist-item"><input type="checkbox" id="notifBudget" checked><span>예산 초과 경고</span></label>
+  <label class="checklist-item"><input type="checkbox" id="notifBackup" checked><span>백업 알림</span></label>
+  <p class="savehint" id="notifSaveHint" style="margin-top:4px;"></p>
+
   <p class="card-title">💾 백업</p>
   <div class="row2">
     <button class="cancelbtn" id="exportBtn" type="button">백업 파일 저장</button>
@@ -1298,6 +1322,24 @@
   var BACKUP_REMINDER_KEY = 'workjournal:backupreminder';
   var BACKUP_REMINDER_LOCAL_KEY = 'work_journal_backupreminder_v1';
   var backupReminderDays = 7;
+  var notifSettings = { settlement:true, budget:true, backup:true };
+  var attendanceTimePresets = {};
+  async function loadAttendanceTimePresets(){
+    await ensureSettingsCacheLoaded();
+    return settingsCache.attendanceTimePresets || {};
+  }
+  async function saveAttendanceTimePresets(){
+    settingsCache.attendanceTimePresets = attendanceTimePresets;
+    await persistSettingsBlob();
+  }
+  async function loadNotifSettings(){
+    await ensureSettingsCacheLoaded();
+    return Object.assign({ settlement:true, budget:true, backup:true }, settingsCache.notifSettings || {});
+  }
+  async function saveNotifSettings(){
+    settingsCache.notifSettings = notifSettings;
+    await persistSettingsBlob();
+  }
   var lastBackupDate = null;
   async function loadBackupReminder(){
     await ensureSettingsCacheLoaded();
@@ -1315,7 +1357,7 @@
   function renderBackupBanner(){
     var banner = document.getElementById('backupReminderBanner');
     if(!banner) return;
-    if(!backupReminderDays || backupReminderDays <= 0){
+    if(notifSettings.backup === false || !backupReminderDays || backupReminderDays <= 0){
       banner.style.display = 'none';
       return;
     }
@@ -3186,7 +3228,7 @@
   function renderBudgetWarningBanner(monthExpenseAmt){
     var banner = document.getElementById('budgetWarningBanner');
     if(!banner) return;
-    if(!monthlyBudget || monthlyBudget <= 0 || !budgetWarningPct || budgetWarningPct <= 0){
+    if(notifSettings.budget === false || !monthlyBudget || monthlyBudget <= 0 || !budgetWarningPct || budgetWarningPct <= 0){
       banner.style.display = 'none';
       return;
     }
@@ -3215,7 +3257,7 @@
     var banner = document.getElementById('settlementReminderBanner');
     if(!banner) return;
     var unsettled = getUnsettledEntries();
-    if(unsettled.length === 0){
+    if(notifSettings.settlement === false || unsettled.length === 0){
       banner.style.display = 'none';
       document.getElementById('settlementReminderList').style.display = 'none';
       settlementListOpen = false;
@@ -3726,6 +3768,48 @@
     });
   }
 
+  function renderAttendTimeSettingsScreen(){
+    var body = document.getElementById('attendTimeSettingsBody');
+    var html = '';
+    if(attendanceTypes.length === 0){
+      html += '<p class="empty-inline">등록된 근무형태가 없어요. 등록관리에서 먼저 추가해주세요.</p>';
+    }else{
+      html += '<p class="savehint" style="margin-bottom:14px;">근무형태별로 기본 시작/종료 시간을 정해두면, 근무기록 등록 시 자동으로 채워져요.</p>';
+      attendanceTypes.forEach(function(t, idx){
+        var preset = attendanceTimePresets[t] || {};
+        html += '<div class="field"><span class="field-label field-label-strong">'+escapeHtml(t)+'</span>';
+        html += '<div class="row2">';
+        html += '<input type="time" class="attendtime-start" data-type="'+escapeHtml(t)+'" value="'+(preset.start||'')+'">';
+        html += '<input type="time" class="attendtime-end" data-type="'+escapeHtml(t)+'" value="'+(preset.end||'')+'">';
+        html += '</div></div>';
+      });
+      html += '<button class="savebtn" id="attendTimeSaveBtn" type="button" style="width:100%;margin-top:10px;">저장</button>';
+      html += '<p class="toast" id="attendTimeToast"></p>';
+    }
+    body.innerHTML = html;
+    var saveBtn = document.getElementById('attendTimeSaveBtn');
+    if(saveBtn){
+      saveBtn.addEventListener('click', async function(){
+        var newPresets = {};
+        document.querySelectorAll('.attendtime-start').forEach(function(inp){
+          var type = inp.getAttribute('data-type');
+          var endInp = document.querySelector('.attendtime-end[data-type="'+type.replace(/"/g,'\\"')+'"]');
+          var start = inp.value;
+          var end = endInp ? endInp.value : '';
+          if(start || end){
+            newPresets[type] = { start: start, end: end };
+          }
+        });
+        attendanceTimePresets = newPresets;
+        await saveAttendanceTimePresets();
+        var t = document.getElementById('attendTimeToast');
+        t.style.color = 'var(--pine)';
+        t.textContent = '저장됐어요';
+        setTimeout(function(){ t.textContent = ''; }, 1500);
+      });
+    }
+  }
+
   function renderOvertimeSettingsScreen(){
     var body = document.getElementById('otSettingsBody');
     var html = '';
@@ -4029,8 +4113,9 @@
 
     html += '<label class="checklist-item"><input type="checkbox" id="at_allDay"'+(e.allDay?' checked':'')+'><span>하루종일</span></label>';
     html += '<div id="at_timeFields" class="row2" style="'+(e.allDay?'display:none;':'')+'">';
-    html += '<div class="field"><span class="field-label">시작시간</span><input type="time" id="at_startTime" value="'+(e.startTime||e.time||'')+'"></div>';
-    html += '<div class="field"><span class="field-label">종료시간</span><input type="time" id="at_endTime" value="'+(e.endTime||'')+'"></div>';
+    var defaultPreset = (!existing && attendanceTypes.length > 0) ? (attendanceTimePresets[attendanceTypes[0]] || {}) : {};
+    html += '<div class="field"><span class="field-label">시작시간</span><input type="time" id="at_startTime" value="'+(e.startTime||e.time||defaultPreset.start||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">종료시간</span><input type="time" id="at_endTime" value="'+(e.endTime||defaultPreset.end||'')+'"></div>';
     html += '</div>';
 
     html += '<div class="field"><span class="field-label">내용</span><textarea id="at_content" placeholder="추가로 남길 내용">'+escapeHtml(e.content||'')+'</textarea></div>';
@@ -4054,6 +4139,13 @@
     }
     document.getElementById('at_allDay').addEventListener('change', function(){
       document.getElementById('at_timeFields').style.display = this.checked ? 'none' : 'grid';
+    });
+    document.getElementById('at_worktype').addEventListener('change', function(){
+      var preset = attendanceTimePresets[this.value];
+      if(preset && !document.getElementById('at_allDay').checked){
+        if(preset.start) document.getElementById('at_startTime').value = preset.start;
+        if(preset.end) document.getElementById('at_endTime').value = preset.end;
+      }
     });
 
     document.getElementById('at_cancelBtn').addEventListener('click', function(){ closeSheet('attendanceSheet'); });
@@ -4581,6 +4673,8 @@
   var statsPeriodMode = 'all';
   var hrPeriodMode = 'month';
   var hrTypeMode = 'all';
+  var hrPage = 1;
+  var HR_PAGE_SIZE = 10;
   var statsTypeMode = 'all';
   var statsPage = 1;
   var statsExpenseTypeFilter = '';
@@ -4868,12 +4962,48 @@
     }
     html += '</div>';
 
+    if(total > 0){
+      var usedTypes = attendanceTypes.filter(function(t){ return typeCounts[t] > 0; });
+      var empCounts = {};
+      var empOrder = [];
+      filtered.forEach(function(e){
+        var emp = employees.find(function(x){ return x.id === e.employeeId; });
+        var name = emp ? emp.name : '(직원 정보 없음)';
+        if(!empCounts[name]){ empCounts[name] = {}; empOrder.push(name); usedTypes.forEach(function(t){ empCounts[name][t]=0; }); }
+        if(empCounts[name][e.workType] != null) empCounts[name][e.workType]++;
+      });
+      html += '<p class="card-title">유형별 · 직원별 통계</p>';
+      html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:'+(120+usedTypes.length*70)+'px;">';
+      html += '<thead><tr><th>직원</th>';
+      usedTypes.forEach(function(t){ html += '<th>'+t+'</th>'; });
+      html += '<th>합계</th></tr></thead><tbody>';
+      empOrder.forEach(function(name){
+        html += '<tr><td>'+escapeHtml(name)+'</td>';
+        var rowTotal = 0;
+        usedTypes.forEach(function(t){
+          var c = empCounts[name][t] || 0;
+          rowTotal += c;
+          html += '<td>'+c+'</td>';
+        });
+        html += '<td style="font-weight:700;">'+rowTotal+'</td></tr>';
+      });
+      html += '<tr style="font-weight:700;"><td>합계</td>';
+      usedTypes.forEach(function(t){ html += '<td>'+typeCounts[t]+'</td>'; });
+      html += '<td>'+total+'</td></tr>';
+      html += '</tbody></table></div>';
+    }
+
     html += '<p class="card-title">목록 ('+filtered.length+'건)</p>';
     var sorted = filtered.slice().sort(function(a,b){ return a.date < b.date ? 1 : -1; });
-    if(sorted.length === 0){
+    var hrTotalPages = Math.max(1, Math.ceil(sorted.length / HR_PAGE_SIZE));
+    if(hrPage > hrTotalPages) hrPage = hrTotalPages;
+    if(hrPage < 1) hrPage = 1;
+    var hrStartIdx = (hrPage-1)*HR_PAGE_SIZE;
+    var hrPageItems = sorted.slice(hrStartIdx, hrStartIdx+HR_PAGE_SIZE);
+    if(hrPageItems.length === 0){
       html += '<p class="empty-inline">기록이 없어요.</p>';
     }else{
-      sorted.forEach(function(e){
+      hrPageItems.forEach(function(e){
         var emp = employees.find(function(x){ return x.id === e.employeeId; });
         var tcolor = attendanceTypeColor(e.workType) || 'var(--amber)';
         html += '<div class="record-item">';
@@ -4886,11 +5016,23 @@
         html += '</div></div>';
       });
     }
+    if(hrTotalPages > 1){
+      var hrGroupStart = getPageGroupStart(hrPage);
+      var hrGroupEnd = Math.min(hrGroupStart+4, hrTotalPages);
+      html += '<div class="pager">';
+      if(hrGroupStart > 1) html += '<button class="pagebtn" data-hr-goto="'+(hrGroupStart-1)+'" type="button">‹</button>';
+      for(var hp=hrGroupStart; hp<=hrGroupEnd; hp++){
+        html += '<button class="pagebtn'+(hp===hrPage?' active':'')+'" data-hr-page="'+hp+'" type="button">'+hp+'</button>';
+      }
+      if(hrGroupEnd < hrTotalPages) html += '<button class="pagebtn" data-hr-goto="'+(hrGroupEnd+1)+'" type="button">›</button>';
+      html += '</div>';
+    }
 
     body.innerHTML = html;
     document.querySelectorAll('#hrPeriodChips .chip').forEach(function(c){
       c.addEventListener('click', function(){
         hrPeriodMode = c.getAttribute('data-val');
+        hrPage = 1;
         renderHrScreen();
       });
     });
@@ -4899,6 +5041,19 @@
     document.querySelectorAll('#hrTypeChips .chip').forEach(function(c){
       c.addEventListener('click', function(){
         hrTypeMode = c.getAttribute('data-val');
+        hrPage = 1;
+        renderHrScreen();
+      });
+    });
+    body.querySelectorAll('[data-hr-page]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        hrPage = parseInt(btn.getAttribute('data-hr-page'), 10);
+        renderHrScreen();
+      });
+    });
+    body.querySelectorAll('[data-hr-goto]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        hrPage = parseInt(btn.getAttribute('data-hr-goto'), 10);
         renderHrScreen();
       });
     });
@@ -5329,7 +5484,24 @@
       openSheet('settingsSheet');
       document.getElementById('backupReminderInput').value = backupReminderDays || '';
       updateLastBackupInfo();
+      document.getElementById('notifSettlement').checked = notifSettings.settlement !== false;
+      document.getElementById('notifBudget').checked = notifSettings.budget !== false;
+      document.getElementById('notifBackup').checked = notifSettings.backup !== false;
     });
+    function wireNotifCheckbox(id, key){
+      document.getElementById(id).addEventListener('change', async function(){
+        notifSettings[key] = this.checked;
+        await saveNotifSettings();
+        var hint = document.getElementById('notifSaveHint');
+        hint.style.color = 'var(--pine)';
+        hint.textContent = '저장됐어요';
+        setTimeout(function(){ hint.textContent = ''; }, 1500);
+        renderCalendar();
+      });
+    }
+    wireNotifCheckbox('notifSettlement', 'settlement');
+    wireNotifCheckbox('notifBudget', 'budget');
+    wireNotifCheckbox('notifBackup', 'backup');
     document.getElementById('backupReminderSaveBtn').addEventListener('click', async function(){
       var v = parseInt(document.getElementById('backupReminderInput').value, 10);
       if(isNaN(v) || v < 0){ v = 0; }
@@ -5366,6 +5538,13 @@
       openSheet('otSettingsSheet');
     });
     document.getElementById('otSettingsCloseBtn').addEventListener('click', function(){
+      openSheet('settingsSheet');
+    });
+    document.getElementById('attendTimeSettingsRowBtn').addEventListener('click', function(){
+      renderAttendTimeSettingsScreen();
+      openSheet('attendTimeSettingsSheet');
+    });
+    document.getElementById('attendTimeSettingsCloseBtn').addEventListener('click', function(){
       openSheet('settingsSheet');
     });
     document.getElementById('welfareSettingsRowBtn').addEventListener('click', function(){
@@ -5448,13 +5627,14 @@
       document.getElementById('employeeSettingsScreen').classList.remove('open');
       renderHrScreen();
     });
-    document.getElementById('employeeOptionsBtn').addEventListener('click', function(){
+    document.getElementById('employeeOptionsRowBtn').addEventListener('click', function(){
+      closeSheet('settingsSheet');
       renderEmployeeOptionsScreen();
       document.getElementById('employeeOptionsScreen').classList.add('open');
     });
     document.getElementById('employeeOptionsBackBtn').addEventListener('click', function(){
       document.getElementById('employeeOptionsScreen').classList.remove('open');
-      renderEmployeeSettingsScreen();
+      openSheet('settingsSheet');
     });
     document.getElementById('employeeFormCloseBtn').addEventListener('click', function(){ closeSheet('employeeFormSheet'); });
     document.getElementById('attendanceCloseBtn').addEventListener('click', function(){ closeSheet('attendanceSheet'); });
@@ -5527,6 +5707,7 @@
       }, 1000);
     });
     document.getElementById('logoutBtn').addEventListener('click', logout);
+    document.getElementById('appTitle').addEventListener('click', function(){ location.reload(); });
   }
 
   async function init(){
@@ -5560,6 +5741,8 @@
       var backupReminderData = await loadBackupReminder();
       backupReminderDays = backupReminderData.days != null ? backupReminderData.days : 7;
       lastBackupDate = backupReminderData.last || null;
+      notifSettings = await loadNotifSettings();
+      attendanceTimePresets = await loadAttendanceTimePresets();
       renderCalendar();
       renderDayDetail();
     }catch(err){
