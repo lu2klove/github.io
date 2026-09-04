@@ -1299,24 +1299,12 @@
   var backupReminderDays = 7;
   var lastBackupDate = null;
   async function loadBackupReminder(){
-    if(hasClaudeStorage()){
-      try{
-        var res = await window.storage.get(BACKUP_REMINDER_KEY, false);
-        return res && res.value ? JSON.parse(res.value) : { days:7, last:null };
-      }catch(e){ return { days:7, last:null }; }
-    }
-    try{
-      var raw = localStorage.getItem(BACKUP_REMINDER_LOCAL_KEY);
-      return raw ? JSON.parse(raw) : { days:7, last:null };
-    }catch(e){ return { days:7, last:null }; }
+    await ensureSettingsCacheLoaded();
+    return settingsCache.backupReminder || { days:7, last:null };
   }
   async function saveBackupReminder(){
-    var data = { days:backupReminderDays, last:lastBackupDate };
-    if(hasClaudeStorage()){
-      try{ await window.storage.set(BACKUP_REMINDER_KEY, JSON.stringify(data), false); }catch(e){}
-      return;
-    }
-    try{ localStorage.setItem(BACKUP_REMINDER_LOCAL_KEY, JSON.stringify(data)); }catch(e){}
+    settingsCache.backupReminder = { days:backupReminderDays, last:lastBackupDate };
+    await persistSettingsBlob();
   }
   function daysSince(dateStr){
     if(!dateStr) return null;
@@ -1385,32 +1373,84 @@
   }
 
   // ---------- Entries storage ----------
-  async function loadEntries(){
-    if(hasClaudeStorage()){
-      try{
-        var res = await window.storage.get(ENTRIES_KEY, false);
-        if(res && res.value) return JSON.parse(res.value);
-        return [];
-      }catch(e){ return []; }
-    }
+  async function getCurrentUserId(){
+    var res = await supabaseClient.auth.getUser();
+    return res.data && res.data.user ? res.data.user.id : null;
+  }
+  var settingsCache = {};
+  var settingsCacheLoaded = false;
+  async function ensureSettingsCacheLoaded(){
+    if(settingsCacheLoaded) return;
     try{
-      var raw = localStorage.getItem(ENTRIES_LOCAL_KEY);
-      return raw ? JSON.parse(raw) : [];
-    }catch(e){
-      storageAvailable = false;
-      return [];
-    }
+      var uid = await getCurrentUserId();
+      if(!uid){ settingsCacheLoaded = true; return; }
+      var res = await supabaseClient.from('user_settings').select('settings').eq('user_id', uid).maybeSingle();
+      settingsCache = (!res.error && res.data && res.data.settings) ? res.data.settings : {};
+    }catch(e){ settingsCache = {}; }
+    settingsCacheLoaded = true;
+  }
+  async function persistSettingsBlob(){
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid) return;
+      await supabaseClient.from('user_settings').upsert({ user_id: uid, settings: settingsCache, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+    }catch(e){ console.error(e); }
+  }
+  function entryRowToObject(row){
+    return Object.assign({
+      id: row.id,
+      type: row.type,
+      date: row.date,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }, row.data || {});
+  }
+  function entryObjectToRow(obj, userId){
+    var rest = Object.assign({}, obj);
+    delete rest.id; delete rest.type; delete rest.date; delete rest.createdAt; delete rest.updatedAt;
+    return {
+      id: obj.id,
+      user_id: userId,
+      type: obj.type,
+      date: obj.date,
+      data: rest,
+      updated_at: obj.updatedAt || new Date().toISOString()
+    };
+  }
+  async function loadEntries(){
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid) return [];
+      var res = await supabaseClient.from('entries').select('*').eq('user_id', uid).order('date');
+      if(res.error){ console.error(res.error); return []; }
+      return res.data.map(entryRowToObject);
+    }catch(e){ console.error(e); return []; }
   }
   async function saveEntries(){
-    if(hasClaudeStorage()){
-      try{ await window.storage.set(ENTRIES_KEY, JSON.stringify(entries), false); }catch(e){}
-      return;
-    }
     try{
-      localStorage.setItem(ENTRIES_LOCAL_KEY, JSON.stringify(entries));
+      var uid = await getCurrentUserId();
+      if(!uid) return;
+      var rows = entries.map(function(e){ return entryObjectToRow(e, uid); });
+      if(rows.length > 0){
+        var upsertRes = await supabaseClient.from('entries').upsert(rows, { onConflict: 'id' });
+        if(upsertRes.error){
+          var box = document.getElementById('backupToast');
+          if(box){ box.style.color='var(--brick)'; box.textContent = '저장 오류: ' + upsertRes.error.message; }
+          return;
+        }
+      }
+      var existingRes = await supabaseClient.from('entries').select('id').eq('user_id', uid);
+      if(!existingRes.error){
+        var currentIds = {};
+        entries.forEach(function(e){ currentIds[e.id] = true; });
+        var idsToDelete = existingRes.data.filter(function(r){ return !currentIds[r.id]; }).map(function(r){ return r.id; });
+        if(idsToDelete.length > 0){
+          await supabaseClient.from('entries').delete().in('id', idsToDelete);
+        }
+      }
     }catch(e){
-      var box = document.getElementById('backupToast');
-      if(box){ box.style.color='var(--brick)'; box.textContent = '저장 오류: ' + (e && e.message ? e.message : e); }
+      var box2 = document.getElementById('backupToast');
+      if(box2){ box2.style.color='var(--brick)'; box2.textContent = '저장 오류: ' + (e && e.message ? e.message : e); }
     }
   }
 
@@ -2329,24 +2369,12 @@
   var welfareLimits = { education:0, checkup:0, travel:0 };
 
   async function loadWelfareLimits(){
-    if(hasClaudeStorage()){
-      try{
-        var res = await window.storage.get(WELFARE_LIMITS_KEY, false);
-        if(res && res.value) return Object.assign({education:0,checkup:0,travel:0}, JSON.parse(res.value));
-        return { education:0, checkup:0, travel:0 };
-      }catch(e){ return { education:0, checkup:0, travel:0 }; }
-    }
-    try{
-      var raw = localStorage.getItem(WELFARE_LIMITS_LOCAL_KEY);
-      return raw ? Object.assign({education:0,checkup:0,travel:0}, JSON.parse(raw)) : { education:0, checkup:0, travel:0 };
-    }catch(e){ return { education:0, checkup:0, travel:0 }; }
+    await ensureSettingsCacheLoaded();
+    return Object.assign({education:0,checkup:0,travel:0}, settingsCache.welfareLimits || {});
   }
   async function saveWelfareLimits(){
-    if(hasClaudeStorage()){
-      try{ await window.storage.set(WELFARE_LIMITS_KEY, JSON.stringify(welfareLimits), false); }catch(e){}
-      return;
-    }
-    try{ localStorage.setItem(WELFARE_LIMITS_LOCAL_KEY, JSON.stringify(welfareLimits)); }catch(e){}
+    settingsCache.welfareLimits = welfareLimits;
+    await persistSettingsBlob();
   }
 
   var TENURE_AMOUNTS_KEY = 'workjournal:tenureamounts';
@@ -2355,24 +2383,12 @@
   var tenureAmounts = Object.assign({}, DEFAULT_TENURE_AMOUNTS);
 
   async function loadTenureAmounts(){
-    if(hasClaudeStorage()){
-      try{
-        var res = await window.storage.get(TENURE_AMOUNTS_KEY, false);
-        if(res && res.value) return Object.assign({}, DEFAULT_TENURE_AMOUNTS, JSON.parse(res.value));
-        return Object.assign({}, DEFAULT_TENURE_AMOUNTS);
-      }catch(e){ return Object.assign({}, DEFAULT_TENURE_AMOUNTS); }
-    }
-    try{
-      var raw = localStorage.getItem(TENURE_AMOUNTS_LOCAL_KEY);
-      return raw ? Object.assign({}, DEFAULT_TENURE_AMOUNTS, JSON.parse(raw)) : Object.assign({}, DEFAULT_TENURE_AMOUNTS);
-    }catch(e){ return Object.assign({}, DEFAULT_TENURE_AMOUNTS); }
+    await ensureSettingsCacheLoaded();
+    return Object.assign({}, DEFAULT_TENURE_AMOUNTS, settingsCache.tenureAmounts || {});
   }
   async function saveTenureAmounts(){
-    if(hasClaudeStorage()){
-      try{ await window.storage.set(TENURE_AMOUNTS_KEY, JSON.stringify(tenureAmounts), false); }catch(e){}
-      return;
-    }
-    try{ localStorage.setItem(TENURE_AMOUNTS_LOCAL_KEY, JSON.stringify(tenureAmounts)); }catch(e){}
+    settingsCache.tenureAmounts = tenureAmounts;
+    await persistSettingsBlob();
   }
 
   function migrateExpenseTypes(list){
@@ -2384,44 +2400,20 @@
   }
 
   async function loadExpenseTypes(){
-    if(hasClaudeStorage()){
-      try{
-        var res = await window.storage.get(EXPENSE_TYPE_KEY, false);
-        if(res && res.value) return migrateExpenseTypes(JSON.parse(res.value));
-        return getDefaultExpenseTypes();
-      }catch(e){ return getDefaultExpenseTypes(); }
-    }
-    try{
-      var raw = localStorage.getItem(EXPENSE_TYPE_LOCAL_KEY);
-      return raw ? migrateExpenseTypes(JSON.parse(raw)) : getDefaultExpenseTypes();
-    }catch(e){ return getDefaultExpenseTypes(); }
+    await ensureSettingsCacheLoaded();
+    return settingsCache.expenseTypes ? migrateExpenseTypes(settingsCache.expenseTypes) : getDefaultExpenseTypes();
   }
   async function saveExpenseTypes(){
-    if(hasClaudeStorage()){
-      try{ await window.storage.set(EXPENSE_TYPE_KEY, JSON.stringify(expenseTypes), false); }catch(e){}
-      return;
-    }
-    try{ localStorage.setItem(EXPENSE_TYPE_LOCAL_KEY, JSON.stringify(expenseTypes)); }catch(e){}
+    settingsCache.expenseTypes = expenseTypes;
+    await persistSettingsBlob();
   }
   async function loadCards(){
-    if(hasClaudeStorage()){
-      try{
-        var res = await window.storage.get(CARDS_KEY, false);
-        if(res && res.value) return JSON.parse(res.value);
-        return [];
-      }catch(e){ return []; }
-    }
-    try{
-      var raw = localStorage.getItem(CARDS_LOCAL_KEY);
-      return raw ? JSON.parse(raw) : [];
-    }catch(e){ return []; }
+    await ensureSettingsCacheLoaded();
+    return settingsCache.paymentCards || [];
   }
   async function saveCards(){
-    if(hasClaudeStorage()){
-      try{ await window.storage.set(CARDS_KEY, JSON.stringify(paymentCards), false); }catch(e){}
-      return;
-    }
-    try{ localStorage.setItem(CARDS_LOCAL_KEY, JSON.stringify(paymentCards)); }catch(e){}
+    settingsCache.paymentCards = paymentCards;
+    await persistSettingsBlob();
   }
 
   // ---------- 인사관리: 직원 ----------
@@ -2438,49 +2430,63 @@
   var employeeJobs = DEFAULT_EMPLOYEE_JOBS.slice();
   var employeeWorkLocations = [];
   async function loadEmployeeOptions(){
+    await ensureSettingsCacheLoaded();
     var fallback = { companies:[], departments:[], projects:[], jobs:DEFAULT_EMPLOYEE_JOBS.slice(), workLocations:[], attendanceTypes:DEFAULT_ATTENDANCE_TYPES.slice() };
-    if(hasClaudeStorage()){
-      try{
-        var res = await window.storage.get(EMPLOYEE_OPTIONS_KEY, false);
-        if(res && res.value) return Object.assign(fallback, JSON.parse(res.value));
-        return fallback;
-      }catch(e){ return fallback; }
-    }
-    try{
-      var raw = localStorage.getItem(EMPLOYEE_OPTIONS_LOCAL_KEY);
-      return raw ? Object.assign(fallback, JSON.parse(raw)) : fallback;
-    }catch(e){ return fallback; }
+    return Object.assign(fallback, settingsCache.employeeOptions || {});
   }
   async function saveEmployeeOptions(){
-    var data = { companies:employeeCompanies, departments:employeeDepartments, projects:employeeProjects, jobs:employeeJobs, workLocations:employeeWorkLocations, attendanceTypes:attendanceTypes };
-    if(hasClaudeStorage()){
-      try{ await window.storage.set(EMPLOYEE_OPTIONS_KEY, JSON.stringify(data), false); }catch(e){}
-      return;
-    }
-    try{ localStorage.setItem(EMPLOYEE_OPTIONS_LOCAL_KEY, JSON.stringify(data)); }catch(e){}
+    settingsCache.employeeOptions = { companies:employeeCompanies, departments:employeeDepartments, projects:employeeProjects, jobs:employeeJobs, workLocations:employeeWorkLocations, attendanceTypes:attendanceTypes };
+    await persistSettingsBlob();
   }
   var EVALUATIONS_KEY = 'workjournal:evaluations';
   var EVALUATIONS_LOCAL_KEY = 'work_journal_evaluations_v1';
   var evaluations = []; // [{id, employeeId, year, diligence, workAttend, workDinner, workEvent, competency, achievement, selfdev, baseScore, reward, penalty, finalScore, note, createdAt, updatedAt}]
+  function evalRowToObject(row){
+    return Object.assign({
+      id: row.id,
+      employeeId: row.employee_id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }, row.data || {});
+  }
+  function evalObjectToRow(obj, userId){
+    var rest = Object.assign({}, obj);
+    delete rest.id; delete rest.employeeId; delete rest.createdAt; delete rest.updatedAt;
+    return {
+      id: obj.id,
+      user_id: userId,
+      employee_id: obj.employeeId || null,
+      data: rest,
+      updated_at: obj.updatedAt || new Date().toISOString()
+    };
+  }
   async function loadEvaluations(){
-    if(hasClaudeStorage()){
-      try{
-        var res = await window.storage.get(EVALUATIONS_KEY, false);
-        if(res && res.value) return JSON.parse(res.value);
-        return [];
-      }catch(e){ return []; }
-    }
     try{
-      var raw = localStorage.getItem(EVALUATIONS_LOCAL_KEY);
-      return raw ? JSON.parse(raw) : [];
-    }catch(e){ return []; }
+      var uid = await getCurrentUserId();
+      if(!uid) return [];
+      var res = await supabaseClient.from('evaluations').select('*').eq('user_id', uid);
+      if(res.error){ console.error(res.error); return []; }
+      return res.data.map(evalRowToObject);
+    }catch(e){ console.error(e); return []; }
   }
   async function saveEvaluations(){
-    if(hasClaudeStorage()){
-      try{ await window.storage.set(EVALUATIONS_KEY, JSON.stringify(evaluations), false); }catch(e){}
-      return;
-    }
-    try{ localStorage.setItem(EVALUATIONS_LOCAL_KEY, JSON.stringify(evaluations)); }catch(e){}
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid) return;
+      var rows = evaluations.map(function(x){ return evalObjectToRow(x, uid); });
+      if(rows.length > 0){
+        await supabaseClient.from('evaluations').upsert(rows, { onConflict: 'id' });
+      }
+      var existingRes = await supabaseClient.from('evaluations').select('id').eq('user_id', uid);
+      if(!existingRes.error){
+        var currentIds = {};
+        evaluations.forEach(function(x){ currentIds[x.id] = true; });
+        var idsToDelete = existingRes.data.filter(function(r){ return !currentIds[r.id]; }).map(function(r){ return r.id; });
+        if(idsToDelete.length > 0){
+          await supabaseClient.from('evaluations').delete().in('id', idsToDelete);
+        }
+      }
+    }catch(e){ console.error(e); }
   }
 
   function renderEmployeeOptionsScreen(){
@@ -3078,25 +3084,50 @@
       });
     });
   }
+  function employeeRowToObject(row){
+    return Object.assign({
+      id: row.id,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at
+    }, row.data || {});
+  }
+  function employeeObjectToRow(obj, userId){
+    var rest = Object.assign({}, obj);
+    delete rest.id; delete rest.createdAt; delete rest.updatedAt;
+    return {
+      id: obj.id,
+      user_id: userId,
+      data: rest,
+      updated_at: obj.updatedAt || new Date().toISOString()
+    };
+  }
   async function loadEmployees(){
-    if(hasClaudeStorage()){
-      try{
-        var res = await window.storage.get(EMPLOYEES_KEY, false);
-        if(res && res.value) return JSON.parse(res.value);
-        return [];
-      }catch(e){ return []; }
-    }
     try{
-      var raw = localStorage.getItem(EMPLOYEES_LOCAL_KEY);
-      return raw ? JSON.parse(raw) : [];
-    }catch(e){ return []; }
+      var uid = await getCurrentUserId();
+      if(!uid) return [];
+      var res = await supabaseClient.from('employees').select('*').eq('user_id', uid);
+      if(res.error){ console.error(res.error); return []; }
+      return res.data.map(employeeRowToObject);
+    }catch(e){ console.error(e); return []; }
   }
   async function saveEmployees(){
-    if(hasClaudeStorage()){
-      try{ await window.storage.set(EMPLOYEES_KEY, JSON.stringify(employees), false); }catch(e){}
-      return;
-    }
-    try{ localStorage.setItem(EMPLOYEES_LOCAL_KEY, JSON.stringify(employees)); }catch(e){}
+    try{
+      var uid = await getCurrentUserId();
+      if(!uid) return;
+      var rows = employees.map(function(x){ return employeeObjectToRow(x, uid); });
+      if(rows.length > 0){
+        await supabaseClient.from('employees').upsert(rows, { onConflict: 'id' });
+      }
+      var existingRes = await supabaseClient.from('employees').select('id').eq('user_id', uid);
+      if(!existingRes.error){
+        var currentIds = {};
+        employees.forEach(function(x){ currentIds[x.id] = true; });
+        var idsToDelete = existingRes.data.filter(function(r){ return !currentIds[r.id]; }).map(function(r){ return r.id; });
+        if(idsToDelete.length > 0){
+          await supabaseClient.from('employees').delete().in('id', idsToDelete);
+        }
+      }
+    }catch(e){ console.error(e); }
   }
   var DEFAULT_ATTENDANCE_TYPES = ['휴가','출장','야근','주말근무','심야근무','교육'];
   var attendanceTypes = DEFAULT_ATTENDANCE_TYPES.slice();
@@ -3108,24 +3139,12 @@
   }
 
   async function loadOvertimePresets(){
-    if(hasClaudeStorage()){
-      try{
-        var res = await window.storage.get(OT_PRESET_KEY, false);
-        if(res && res.value) return JSON.parse(res.value);
-        return DEFAULT_OT_PRESETS.slice();
-      }catch(e){ return DEFAULT_OT_PRESETS.slice(); }
-    }
-    try{
-      var raw = localStorage.getItem(OT_PRESET_LOCAL_KEY);
-      return raw ? JSON.parse(raw) : DEFAULT_OT_PRESETS.slice();
-    }catch(e){ return DEFAULT_OT_PRESETS.slice(); }
+    await ensureSettingsCacheLoaded();
+    return settingsCache.overtimePresets || DEFAULT_OT_PRESETS.slice();
   }
   async function saveOvertimePresets(){
-    if(hasClaudeStorage()){
-      try{ await window.storage.set(OT_PRESET_KEY, JSON.stringify(overtimePresets), false); }catch(e){}
-      return;
-    }
-    try{ localStorage.setItem(OT_PRESET_LOCAL_KEY, JSON.stringify(overtimePresets)); }catch(e){}
+    settingsCache.overtimePresets = overtimePresets;
+    await persistSettingsBlob();
   }
 
 
@@ -3136,23 +3155,12 @@
   var BUDGET_WARN_LOCAL_KEY = 'work_journal_budgetwarnpct_v1';
   var budgetWarningPct = 80;
   async function loadBudgetWarningPct(){
-    if(hasClaudeStorage()){
-      try{
-        var res = await window.storage.get(BUDGET_WARN_KEY, false);
-        return res && res.value ? parseFloat(res.value) : 80;
-      }catch(e){ return 80; }
-    }
-    try{
-      var raw = localStorage.getItem(BUDGET_WARN_LOCAL_KEY);
-      return raw ? parseFloat(raw) : 80;
-    }catch(e){ return 80; }
+    await ensureSettingsCacheLoaded();
+    return (settingsCache.budgetWarningPct != null) ? settingsCache.budgetWarningPct : 80;
   }
   async function saveBudgetWarningPct(){
-    if(hasClaudeStorage()){
-      try{ await window.storage.set(BUDGET_WARN_KEY, String(budgetWarningPct), false); }catch(e){}
-      return;
-    }
-    try{ localStorage.setItem(BUDGET_WARN_LOCAL_KEY, String(budgetWarningPct)); }catch(e){}
+    settingsCache.budgetWarningPct = budgetWarningPct;
+    await persistSettingsBlob();
   }
   function renderBudgetWarningBanner(monthExpenseAmt){
     var banner = document.getElementById('budgetWarningBanner');
@@ -3239,40 +3247,20 @@
 
 
   async function loadExpenseCategories(){
-    if(hasClaudeStorage()){
-      try{
-        var res = await window.storage.get(EXPENSE_CAT_KEY, false);
-        if(res && res.value) return JSON.parse(res.value);
-        return DEFAULT_EXPENSE_CATEGORIES.slice();
-      }catch(e){ return DEFAULT_EXPENSE_CATEGORIES.slice(); }
-    }
-    try{
-      var raw = localStorage.getItem(EXPENSE_CAT_LOCAL_KEY);
-      return raw ? JSON.parse(raw) : DEFAULT_EXPENSE_CATEGORIES.slice();
-    }catch(e){ return DEFAULT_EXPENSE_CATEGORIES.slice(); }
+    await ensureSettingsCacheLoaded();
+    return settingsCache.expenseCategories || DEFAULT_EXPENSE_CATEGORIES.slice();
   }
   async function saveExpenseCategories(){
-    if(hasClaudeStorage()){
-      try{ await window.storage.set(EXPENSE_CAT_KEY, JSON.stringify(expenseCategories), false); }catch(e){}
-      return;
-    }
-    try{ localStorage.setItem(EXPENSE_CAT_LOCAL_KEY, JSON.stringify(expenseCategories)); }catch(e){}
+    settingsCache.expenseCategories = expenseCategories;
+    await persistSettingsBlob();
   }
   async function loadMonthlyBudget(){
-    if(hasClaudeStorage()){
-      try{
-        var res = await window.storage.get(BUDGET_KEY, false);
-        return (res && res.value) ? parseFloat(res.value) : 0;
-      }catch(e){ return 0; }
-    }
-    try{ return parseFloat(localStorage.getItem(BUDGET_LOCAL_KEY)) || 0; }catch(e){ return 0; }
+    await ensureSettingsCacheLoaded();
+    return (settingsCache.monthlyBudget != null) ? settingsCache.monthlyBudget : 0;
   }
   async function saveMonthlyBudget(){
-    if(hasClaudeStorage()){
-      try{ await window.storage.set(BUDGET_KEY, String(monthlyBudget), false); }catch(e){}
-      return;
-    }
-    try{ localStorage.setItem(BUDGET_LOCAL_KEY, String(monthlyBudget)); }catch(e){}
+    settingsCache.monthlyBudget = monthlyBudget;
+    await persistSettingsBlob();
   }
 
 
