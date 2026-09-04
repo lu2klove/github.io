@@ -943,6 +943,7 @@
   </div>
   <p class="subtitle">출장, 경비, 야근, 업무기록을 한 곳에 기록해요</p>
 
+  <div id="syncErrorBanner" style="display:none;background:var(--brick);color:#fff;padding:10px 14px;border-radius:8px;font-size:12.5px;margin-bottom:12px;white-space:pre-wrap;word-break:break-all;"></div>
   <div id="backupReminderBanner" style="display:none;"></div>
   <div id="budgetWarningBanner" style="display:none;"></div>
   <div id="settlementReminderBanner" style="display:none;"></div>
@@ -1377,24 +1378,35 @@
     var res = await supabaseClient.auth.getUser();
     return res.data && res.data.user ? res.data.user.id : null;
   }
+  function reportSyncError(where, err){
+    var msg = err && err.message ? err.message : String(err);
+    console.error('[Supabase 오류: '+where+']', err);
+    var banner = document.getElementById('syncErrorBanner');
+    if(banner){
+      banner.style.display = 'block';
+      banner.textContent = '⚠️ 동기화 오류 ('+where+'): ' + msg;
+    }
+  }
   var settingsCache = {};
   var settingsCacheLoaded = false;
   async function ensureSettingsCacheLoaded(){
     if(settingsCacheLoaded) return;
     try{
       var uid = await getCurrentUserId();
-      if(!uid){ settingsCacheLoaded = true; return; }
+      if(!uid){ reportSyncError('설정 불러오기', '로그인 세션을 찾을 수 없어요'); settingsCacheLoaded = true; return; }
       var res = await supabaseClient.from('user_settings').select('settings').eq('user_id', uid).maybeSingle();
+      if(res.error){ reportSyncError('설정 불러오기', res.error); }
       settingsCache = (!res.error && res.data && res.data.settings) ? res.data.settings : {};
-    }catch(e){ settingsCache = {}; }
+    }catch(e){ reportSyncError('설정 불러오기', e); settingsCache = {}; }
     settingsCacheLoaded = true;
   }
   async function persistSettingsBlob(){
     try{
       var uid = await getCurrentUserId();
-      if(!uid) return;
-      await supabaseClient.from('user_settings').upsert({ user_id: uid, settings: settingsCache, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
-    }catch(e){ console.error(e); }
+      if(!uid){ reportSyncError('설정 저장', '로그인 세션을 찾을 수 없어요'); return; }
+      var res = await supabaseClient.from('user_settings').upsert({ user_id: uid, settings: settingsCache, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+      if(res.error) reportSyncError('설정 저장', res.error);
+    }catch(e){ reportSyncError('설정 저장', e); }
   }
   function entryRowToObject(row){
     return Object.assign({
@@ -1420,37 +1432,38 @@
   async function loadEntries(){
     try{
       var uid = await getCurrentUserId();
-      if(!uid) return [];
+      if(!uid){ reportSyncError('entries 불러오기', '로그인 세션을 찾을 수 없어요'); return []; }
       var res = await supabaseClient.from('entries').select('*').eq('user_id', uid).order('date');
-      if(res.error){ console.error(res.error); return []; }
+      if(res.error){ reportSyncError('entries 불러오기', res.error); return []; }
       return res.data.map(entryRowToObject);
-    }catch(e){ console.error(e); return []; }
+    }catch(e){ reportSyncError('entries 불러오기', e); return []; }
   }
   async function saveEntries(){
     try{
       var uid = await getCurrentUserId();
-      if(!uid) return;
+      if(!uid){ reportSyncError('entries 저장', '로그인 세션을 찾을 수 없어요'); return; }
       var rows = entries.map(function(e){ return entryObjectToRow(e, uid); });
       if(rows.length > 0){
         var upsertRes = await supabaseClient.from('entries').upsert(rows, { onConflict: 'id' });
         if(upsertRes.error){
-          var box = document.getElementById('backupToast');
-          if(box){ box.style.color='var(--brick)'; box.textContent = '저장 오류: ' + upsertRes.error.message; }
+          reportSyncError('entries 저장', upsertRes.error);
           return;
         }
       }
       var existingRes = await supabaseClient.from('entries').select('id').eq('user_id', uid);
-      if(!existingRes.error){
+      if(existingRes.error){
+        reportSyncError('entries 조회(삭제 처리용)', existingRes.error);
+      }else{
         var currentIds = {};
         entries.forEach(function(e){ currentIds[e.id] = true; });
         var idsToDelete = existingRes.data.filter(function(r){ return !currentIds[r.id]; }).map(function(r){ return r.id; });
         if(idsToDelete.length > 0){
-          await supabaseClient.from('entries').delete().in('id', idsToDelete);
+          var delRes = await supabaseClient.from('entries').delete().in('id', idsToDelete);
+          if(delRes.error) reportSyncError('entries 삭제', delRes.error);
         }
       }
     }catch(e){
-      var box2 = document.getElementById('backupToast');
-      if(box2){ box2.style.color='var(--brick)'; box2.textContent = '저장 오류: ' + (e && e.message ? e.message : e); }
+      reportSyncError('entries 저장', e);
     }
   }
 
@@ -2463,30 +2476,34 @@
   async function loadEvaluations(){
     try{
       var uid = await getCurrentUserId();
-      if(!uid) return [];
+      if(!uid){ reportSyncError('evaluations 불러오기', '로그인 세션을 찾을 수 없어요'); return []; }
       var res = await supabaseClient.from('evaluations').select('*').eq('user_id', uid);
-      if(res.error){ console.error(res.error); return []; }
+      if(res.error){ reportSyncError('evaluations 불러오기', res.error); return []; }
       return res.data.map(evalRowToObject);
-    }catch(e){ console.error(e); return []; }
+    }catch(e){ reportSyncError('evaluations 불러오기', e); return []; }
   }
   async function saveEvaluations(){
     try{
       var uid = await getCurrentUserId();
-      if(!uid) return;
+      if(!uid){ reportSyncError('evaluations 저장', '로그인 세션을 찾을 수 없어요'); return; }
       var rows = evaluations.map(function(x){ return evalObjectToRow(x, uid); });
       if(rows.length > 0){
-        await supabaseClient.from('evaluations').upsert(rows, { onConflict: 'id' });
+        var upsertRes = await supabaseClient.from('evaluations').upsert(rows, { onConflict: 'id' });
+        if(upsertRes.error){ reportSyncError('evaluations 저장', upsertRes.error); return; }
       }
       var existingRes = await supabaseClient.from('evaluations').select('id').eq('user_id', uid);
-      if(!existingRes.error){
+      if(existingRes.error){
+        reportSyncError('evaluations 조회(삭제 처리용)', existingRes.error);
+      }else{
         var currentIds = {};
         evaluations.forEach(function(x){ currentIds[x.id] = true; });
         var idsToDelete = existingRes.data.filter(function(r){ return !currentIds[r.id]; }).map(function(r){ return r.id; });
         if(idsToDelete.length > 0){
-          await supabaseClient.from('evaluations').delete().in('id', idsToDelete);
+          var delRes = await supabaseClient.from('evaluations').delete().in('id', idsToDelete);
+          if(delRes.error) reportSyncError('evaluations 삭제', delRes.error);
         }
       }
-    }catch(e){ console.error(e); }
+    }catch(e){ reportSyncError('evaluations 저장', e); }
   }
 
   function renderEmployeeOptionsScreen(){
@@ -3104,30 +3121,34 @@
   async function loadEmployees(){
     try{
       var uid = await getCurrentUserId();
-      if(!uid) return [];
+      if(!uid){ reportSyncError('employees 불러오기', '로그인 세션을 찾을 수 없어요'); return []; }
       var res = await supabaseClient.from('employees').select('*').eq('user_id', uid);
-      if(res.error){ console.error(res.error); return []; }
+      if(res.error){ reportSyncError('employees 불러오기', res.error); return []; }
       return res.data.map(employeeRowToObject);
-    }catch(e){ console.error(e); return []; }
+    }catch(e){ reportSyncError('employees 불러오기', e); return []; }
   }
   async function saveEmployees(){
     try{
       var uid = await getCurrentUserId();
-      if(!uid) return;
+      if(!uid){ reportSyncError('employees 저장', '로그인 세션을 찾을 수 없어요'); return; }
       var rows = employees.map(function(x){ return employeeObjectToRow(x, uid); });
       if(rows.length > 0){
-        await supabaseClient.from('employees').upsert(rows, { onConflict: 'id' });
+        var upsertRes = await supabaseClient.from('employees').upsert(rows, { onConflict: 'id' });
+        if(upsertRes.error){ reportSyncError('employees 저장', upsertRes.error); return; }
       }
       var existingRes = await supabaseClient.from('employees').select('id').eq('user_id', uid);
-      if(!existingRes.error){
+      if(existingRes.error){
+        reportSyncError('employees 조회(삭제 처리용)', existingRes.error);
+      }else{
         var currentIds = {};
         employees.forEach(function(x){ currentIds[x.id] = true; });
         var idsToDelete = existingRes.data.filter(function(r){ return !currentIds[r.id]; }).map(function(r){ return r.id; });
         if(idsToDelete.length > 0){
-          await supabaseClient.from('employees').delete().in('id', idsToDelete);
+          var delRes = await supabaseClient.from('employees').delete().in('id', idsToDelete);
+          if(delRes.error) reportSyncError('employees 삭제', delRes.error);
         }
       }
-    }catch(e){ console.error(e); }
+    }catch(e){ reportSyncError('employees 저장', e); }
   }
   var DEFAULT_ATTENDANCE_TYPES = ['휴가','출장','야근','주말근무','심야근무','교육'];
   var attendanceTypes = DEFAULT_ATTENDANCE_TYPES.slice();
