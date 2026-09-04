@@ -317,6 +317,14 @@
     font-size:9px;
     line-height:1;
   }
+  .cell.important-marked::after{
+    content:'⭐';
+    position:absolute;
+    top:-2px;
+    right:-1px;
+    font-size:9px;
+    line-height:1;
+  }
   .cell .dot{
     width:5px; height:5px;
     border-radius:50%;
@@ -1805,6 +1813,12 @@
       if(hasUnsettledTrip){
         cell.classList.add('unsettled');
       }
+      var hasImportantAttendance = dayEntries.some(function(e){
+        return e.type === 'attendance' && e.important;
+      });
+      if(hasImportantAttendance){
+        cell.classList.add('important-marked');
+      }
       if(dayEntries.length === 1){
         var singleBadge = document.createElement('div');
         singleBadge.className = 'daybadge-single';
@@ -2035,6 +2049,7 @@
     if(e.type === 'attendance'){
       var emp = employees.find(function(x){ return x.id === e.employeeId; });
       var parts5 = [];
+      if(e.important) parts5.push('⭐');
       if(emp) parts5.push(emp.name);
       if(e.workType) parts5.push(e.workType);
       if(e.allDay){
@@ -4118,6 +4133,7 @@
     html += '<div class="field"><span class="field-label">종료시간</span><input type="time" id="at_endTime" value="'+(e.endTime||defaultPreset.end||'')+'"></div>';
     html += '</div>';
 
+    html += '<label class="checklist-item"><input type="checkbox" id="at_important"'+(e.important?' checked':'')+'><span>⭐ 중요 표시 (달력에 마크로 보여요)</span></label>';
     html += '<div class="field"><span class="field-label">내용</span><textarea id="at_content" placeholder="추가로 남길 내용">'+escapeHtml(e.content||'')+'</textarea></div>';
 
     html += '<div class="row2">';
@@ -4174,6 +4190,7 @@
     var employeeId = empEl.value;
     var workType = document.getElementById('at_worktype').value;
     var content = document.getElementById('at_content').value.trim();
+    var important = document.getElementById('at_important').checked;
 
     var rangeToggle = document.getElementById('at_rangeMode');
     var isRange = rangeToggle && rangeToggle.checked;
@@ -4201,6 +4218,7 @@
           startTime: startTime,
           endTime: endTime,
           content: content,
+          important: important,
           createdAt: now,
           updatedAt: now
         });
@@ -4217,6 +4235,7 @@
         startTime: startTime,
         endTime: endTime,
         content: content,
+        important: important,
         createdAt: editingAttendanceId ? (entries.find(function(x){return x.id===editingAttendanceId;})||{}).createdAt || now : now,
         updatedAt: now
       };
