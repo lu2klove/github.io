@@ -2830,16 +2830,21 @@
     return html;
   }
 
-  function countTardiness(employeeId, year){
+  function countAttendanceByType(employeeId, year, keyword){
     if(!employeeId || !year) return 0;
     return entries.filter(function(x){
-      return x.type === 'attendance' && x.workType && x.workType.indexOf('지각') > -1 && x.employeeId === employeeId && x.date && x.date.slice(0,4) === String(year);
+      return x.type === 'attendance' && x.workType && x.workType.indexOf(keyword) > -1 && x.employeeId === employeeId && x.date && x.date.slice(0,4) === String(year);
     }).length;
+  }
+  function countTardiness(employeeId, year){
+    return countAttendanceByType(employeeId, year, '지각');
   }
   function openEvaluationForm(existing){
     editingEvaluationId = existing ? existing.id : null;
     var e = existing || { year:new Date().getFullYear(), workAttend:2.5, workDinner:1.5, workEvent:1, competencyItems:{}, achievementConditions:{}, selfdevItems:{}, rewardItems:{}, penaltyItems:{} };
     var body = document.getElementById('evaluationFormBody');
+    var initialEmpId = e.employeeId || (employees.length > 0 ? employees[0].id : null);
+    var initialYear = e.year || new Date().getFullYear();
 
     function getSelectedPosition(){
       var empEl = document.getElementById('ev_employee');
@@ -2871,7 +2876,7 @@
     html += '<p style="text-align:center;font-weight:700;font-size:18px;margin:8px 0 0;color:var(--amber);" id="ev_diligenceValueDisplay">'+(e.diligence!=null?e.diligence:0)+'</p>';
     html += '</div>';
 
-    html += '<p class="field-label field-label-strong" style="margin-top:12px;">🙋 참여도 (최대 10)</p>';
+    html += '<p class="field-label field-label-strong" style="margin-top:12px;">🙋 참여도 (최대 10) <span id="ev_overtimeCount" style="color:var(--amber);font-weight:700;">— 야근 '+countAttendanceByType(initialEmpId, initialYear, '야근')+'회</span></p>';
     html += '<div class="row2">';
     html += '<div class="field"><span class="field-label">작업(5)</span><input type="number" step="0.5" min="0" max="5" class="ev-score" id="ev_workAttend" value="'+(e.workAttend!=null?e.workAttend:2.5)+'"></div>';
     html += '<div class="field"><span class="field-label">회식(3)</span><input type="number" step="0.5" min="0" max="3" class="ev-score" id="ev_workDinner" value="'+(e.workDinner!=null?e.workDinner:1.5)+'"></div>';
@@ -2893,7 +2898,7 @@
     html += '</div>';
 
     html += '<p class="field-label field-label-strong" style="margin-top:14px;">🌱 자기계발 (최대 10)</p>';
-    html += checkboxGroupHTML(SELFDEV_ITEMS, 'selfdev', e.selfdevItems);
+    html += checkboxGroupHTML(SELFDEV_ITEMS, 'selfdev', e.selfdevItems, { training: '올해 '+countAttendanceByType(initialEmpId, initialYear, '교육')+'회 발생' });
     html += '<p class="savehint" style="font-weight:700;" id="ev_selfdevTotal">자기계발 합계: 0 / 10</p>';
 
     html += '<div class="rule-card" style="margin:14px 0;"><div style="display:flex;justify-content:space-between;"><span>평가점수 (base)</span><b id="ev_baseDisplay">0</b></div></div>';
@@ -2904,8 +2909,10 @@
 
     html += '<p class="field-label field-label-strong" style="margin-top:14px;color:var(--brick);">🚨 Penalty (7~100)</p>';
     html += '<p class="savehint" style="margin-top:-6px;">"서비스 인적장애"를 선택하면 다른 항목은 자동으로 해제돼요.</p>';
-    var initialTardinessCount = countTardiness(e.employeeId || (employees.length > 0 ? employees[0].id : null), e.year || new Date().getFullYear());
-    html += checkboxGroupHTML(PENALTY_ITEMS, 'penalty', e.penaltyItems, { tardiness: '올해 '+initialTardinessCount+'회 발생' });
+    html += checkboxGroupHTML(PENALTY_ITEMS, 'penalty', e.penaltyItems, {
+      tardiness: '올해 '+countAttendanceByType(initialEmpId, initialYear, '지각')+'회 발생',
+      negligence: '올해 '+countAttendanceByType(initialEmpId, initialYear, '근무태만')+'회 발생'
+    });
     html += '<p class="savehint" style="font-weight:700;color:var(--brick);" id="ev_penaltyTotal">Penalty 합계: 0</p>';
 
     html += '<label class="checklist-item" style="margin-top:14px;"><input type="checkbox" id="ev_excluded"'+(e.excluded?' checked':'')+'><span>이 평가는 등급 산정에서 제외 (N등급)</span></label>';
@@ -3026,9 +3033,14 @@
     function updateTardinessDisplay(){
       var empId = document.getElementById('ev_employee').value;
       var year = parseInt(document.getElementById('ev_year').value, 10) || new Date().getFullYear();
-      var count = countTardiness(empId, year);
-      var el = document.querySelector('.penalty-extrainfo[data-key="tardiness"]');
-      if(el) el.textContent = '올해 '+count+'회 발생';
+      var overtimeEl = document.getElementById('ev_overtimeCount');
+      if(overtimeEl) overtimeEl.textContent = '— 야근 '+countAttendanceByType(empId, year, '야근')+'회';
+      var trainingEl = document.querySelector('.selfdev-extrainfo[data-key="training"]');
+      if(trainingEl) trainingEl.textContent = '올해 '+countAttendanceByType(empId, year, '교육')+'회 발생';
+      var tardyEl = document.querySelector('.penalty-extrainfo[data-key="tardiness"]');
+      if(tardyEl) tardyEl.textContent = '올해 '+countAttendanceByType(empId, year, '지각')+'회 발생';
+      var negligenceEl = document.querySelector('.penalty-extrainfo[data-key="negligence"]');
+      if(negligenceEl) negligenceEl.textContent = '올해 '+countAttendanceByType(empId, year, '근무태만')+'회 발생';
     }
     var empSelect = document.getElementById('ev_employee');
     if(empSelect && !empSelect.disabled){
