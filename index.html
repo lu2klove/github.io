@@ -2864,6 +2864,10 @@
     editingEvaluationId = existing ? existing.id : null;
     var e = existing || { year:new Date().getFullYear(), workAttend:2.5, workDinner:1.5, workEvent:1, competencyItems:{}, achievementConditions:{}, selfdevItems:{}, rewardItems:{}, penaltyItems:{} };
     var body = document.getElementById('evaluationFormBody');
+    // 퇴사(직원목록에서 삭제)한 직원의 과거 평가는 수정하면 안 돼요.
+    // select에서 그 직원 id가 이제 없어서 브라우저가 다른(보통 첫 번째) 직원을
+    // 자동 선택해버리는데, 이 상태로 저장하면 엉뚱한 직원 이름으로 덮어써져요.
+    var isTerminatedEmployee = !!(existing && existing.employeeId && !employees.find(function(x){ return x.id === existing.employeeId; }));
     var initialEmpId = e.employeeId || (employees.length > 0 ? employees[0].id : null);
     var initialYear = e.year || new Date().getFullYear();
 
@@ -2875,8 +2879,16 @@
     }
 
     var html = '';
+    if(isTerminatedEmployee){
+      html += '<div class="rule-card" style="background:var(--amber-soft);margin-bottom:14px;">';
+      html += '<p style="font-weight:700;color:var(--brick);">⚠️ 퇴사한 직원의 기록이에요</p>';
+      html += '<p class="savehint" style="margin-top:4px;">'+escapeHtml(existing.employeeName||'이 직원')+'님은 직원 목록에서 삭제됐어요. 기록 보존을 위해 내용은 수정할 수 없고, 삭제만 가능해요.</p>';
+      html += '</div>';
+    }
     html += '<div class="field"><span class="field-label field-label-strong">👤 직원</span>';
-    if(employees.length === 0){
+    if(isTerminatedEmployee){
+      html += '<select id="ev_employee" disabled><option selected>'+escapeHtml(existing.employeeName||'(삭제된 직원)')+' (퇴사)</option></select>';
+    }else if(employees.length === 0){
       html += '<select id="ev_employee" disabled><option>등록된 직원이 없어요 (인사관리 &gt; ⚙️에서 등록)</option></select>';
     }else{
       html += '<select id="ev_employee">';
@@ -2948,11 +2960,21 @@
     html += '<div class="field"><span class="field-label">비고</span><textarea id="ev_note" placeholder="추가로 남길 내용">'+escapeHtml(e.note||'')+'</textarea></div>';
 
     html += '<div class="row2">';
-    html += '<button class="cancelbtn" id="ev_cancelBtn" type="button">취소</button>';
-    html += '<button class="savebtn" id="ev_saveBtn" type="button">'+(existing?'수정 저장':'평가 저장')+'</button>';
+    html += '<button class="cancelbtn" id="ev_cancelBtn" type="button">'+(isTerminatedEmployee?'닫기':'취소')+'</button>';
+    if(!isTerminatedEmployee){
+      html += '<button class="savebtn" id="ev_saveBtn" type="button">'+(existing?'수정 저장':'평가 저장')+'</button>';
+    }
     html += '</div>';
     if(existing){
       html += '<button class="danger" id="ev_deleteBtn" type="button" style="width:100%;margin-top:10px;">이 평가 삭제</button>';
+    }
+
+    if(isTerminatedEmployee){
+      // 위에서 만든 직원 select 하나만 빼고, 나머지 입력/선택/텍스트 필드를
+      // 전부 비활성화해요. (체크박스도 input이라 함께 걸려요)
+      html = html.replace(/<(input|select|textarea)((?:(?!disabled)[^>])*)>/g, function(m, tag, attrs){
+        return '<'+tag+attrs+' disabled>';
+      });
     }
 
     body.innerHTML = html;
@@ -3080,7 +3102,10 @@
     refreshEvalTotals();
 
     document.getElementById('ev_cancelBtn').addEventListener('click', function(){ closeSheet('evaluationFormSheet'); });
-    document.getElementById('ev_saveBtn').addEventListener('click', saveEvaluationForm);
+    var saveBtnEl = document.getElementById('ev_saveBtn');
+    if(saveBtnEl){
+      saveBtnEl.addEventListener('click', saveEvaluationForm);
+    }
     var delBtn = document.getElementById('ev_deleteBtn');
     if(delBtn){
       delBtn.addEventListener('click', async function(){
