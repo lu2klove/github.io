@@ -2650,6 +2650,7 @@
     body.querySelectorAll('[data-emp-del]').forEach(function(btn){
       btn.addEventListener('click', async function(){
         var id = btn.getAttribute('data-emp-del');
+        await migrateEvaluationEmployeeNames();
         employees = employees.filter(function(x){ return x.id !== id; });
         await saveEmployees();
         renderEmployeeSettingsScreen();
@@ -2839,6 +2840,26 @@
   function countTardiness(employeeId, year){
     return countAttendanceByType(employeeId, year, '지각');
   }
+  // 예전에 저장된 인사평가는 이름을 스냅샷으로 안 갖고 있어서, 직원이
+  // 나중에 삭제되면 "(삭제된 직원)"으로 보였어요. 아직 직원이 목록에
+  // 남아있는 지금 시점에 이름을 한 번만 실제로 박아넣어서, 나중에 그
+  // 직원이 삭제돼도 평가 기록엔 이름이 그대로 남게 해요.
+  async function migrateEvaluationEmployeeNames(){
+    var changed = false;
+    evaluations.forEach(function(ev){
+      if(!ev.employeeName){
+        var emp = employees.find(function(x){ return x.id === ev.employeeId; });
+        if(emp){
+          ev.employeeName = emp.name;
+          changed = true;
+        }
+      }
+    });
+    if(changed){
+      await saveEvaluations();
+    }
+  }
+
   function openEvaluationForm(existing){
     editingEvaluationId = existing ? existing.id : null;
     var e = existing || { year:new Date().getFullYear(), workAttend:2.5, workDinner:1.5, workEvent:1, competencyItems:{}, achievementConditions:{}, selfdevItems:{}, rewardItems:{}, penaltyItems:{} };
@@ -3104,9 +3125,11 @@
     var s = computeEvalScores(v);
     var excluded = document.getElementById('ev_excluded').checked;
     var grade = computeEvalGrade(s.final, excluded).grade;
+    var selectedEmp = employees.find(function(x){ return x.id === empEl.value; });
     var payload = Object.assign({
       id: editingEvaluationId || uid(),
       employeeId: empEl.value,
+      employeeName: selectedEmp ? selectedEmp.name : ((evaluations.find(function(x){return x.id===editingEvaluationId;})||{}).employeeName || ''),
       year: parseInt(document.getElementById('ev_year').value, 10) || new Date().getFullYear(),
       note: document.getElementById('ev_note').value.trim(),
       strengths: document.getElementById('ev_strengths').value.trim(),
@@ -3199,7 +3222,7 @@
         html += '<td>'+(idx+1)+'</td>';
         html += '<td>'+ev.year+'년</td>';
         html += '<td>'+(emp?escapeHtml(emp.department||emp.company||'-'):'-')+'</td>';
-        html += '<td>'+(emp?escapeHtml(emp.name):'(삭제된 직원)')+'</td>';
+        html += '<td>'+(ev.employeeName ? escapeHtml(ev.employeeName) : (emp?escapeHtml(emp.name):'(삭제된 직원)'))+'</td>';
         html += '<td>'+(emp?escapeHtml(emp.project||emp.workLocation||'-'):'-')+'</td>';
         html += '<td style="font-weight:700;">'+ev.finalScore.toFixed(2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1')+'</td>';
         html += '<td style="font-weight:800;color:'+g.color+';">'+g.grade+'</td>';
@@ -4769,6 +4792,7 @@
   var hrPeriodMode = 'month';
   var hrTypeMode = 'all';
   var hrPage = 1;
+  var hrEmployeeFilter = '';
   var HR_PAGE_SIZE = 10;
   var statsTypeMode = 'all';
   var statsPage = 1;
@@ -5073,7 +5097,9 @@
       usedTypes.forEach(function(t){ html += '<th>'+t+'</th>'; });
       html += '<th>합계</th></tr></thead><tbody>';
       empOrder.forEach(function(name){
-        html += '<tr><td>'+escapeHtml(name)+'</td>';
+        var isSelectedEmp = (hrEmployeeFilter === name);
+        html += '<tr'+(isSelectedEmp?' style="background:var(--amber-soft);"':'')+'>';
+        html += '<td class="hr-emp-name-cell" data-hr-emp="'+escapeHtml(name)+'" style="cursor:pointer;text-decoration:underline;color:'+(isSelectedEmp?'var(--brick)':'var(--blue)')+';font-weight:'+(isSelectedEmp?'700':'400')+';">'+escapeHtml(name)+'</td>';
         var rowTotal = 0;
         usedTypes.forEach(function(t){
           var c = empCounts[name][t] || 0;
@@ -5088,8 +5114,22 @@
       html += '</tbody></table></div>';
     }
 
-    html += '<p class="card-title">목록 ('+filtered.length+'건)</p>';
-    var sorted = filtered.slice().sort(function(a,b){ return a.date < b.date ? 1 : -1; });
+    var listFiltered = filtered;
+    if(hrEmployeeFilter){
+      listFiltered = filtered.filter(function(e){
+        var emp = employees.find(function(x){ return x.id === e.employeeId; });
+        var name = emp ? emp.name : '(직원 정보 없음)';
+        return name === hrEmployeeFilter;
+      });
+    }
+
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;">';
+    html += '<p class="card-title" style="margin:0;">목록 ('+listFiltered.length+'건)</p>';
+    if(hrEmployeeFilter){
+      html += '<button class="chip selected" id="hrEmpFilterClearBtn" type="button" style="font-size:12px;padding:4px 10px;">👤 '+escapeHtml(hrEmployeeFilter)+' · ✕ 전체보기</button>';
+    }
+    html += '</div>';
+    var sorted = listFiltered.slice().sort(function(a,b){ return a.date < b.date ? 1 : -1; });
     var hrTotalPages = Math.max(1, Math.ceil(sorted.length / HR_PAGE_SIZE));
     if(hrPage > hrTotalPages) hrPage = hrTotalPages;
     if(hrPage < 1) hrPage = 1;
@@ -5128,6 +5168,7 @@
       c.addEventListener('click', function(){
         hrPeriodMode = c.getAttribute('data-val');
         hrPage = 1;
+        hrEmployeeFilter = '';
         renderHrScreen();
       });
     });
@@ -5137,9 +5178,26 @@
       c.addEventListener('click', function(){
         hrTypeMode = c.getAttribute('data-val');
         hrPage = 1;
+        hrEmployeeFilter = '';
         renderHrScreen();
       });
     });
+    body.querySelectorAll('.hr-emp-name-cell').forEach(function(cell){
+      cell.addEventListener('click', function(){
+        var name = cell.getAttribute('data-hr-emp');
+        hrEmployeeFilter = (hrEmployeeFilter === name) ? '' : name;
+        hrPage = 1;
+        renderHrScreen();
+      });
+    });
+    var hrEmpClearBtn = document.getElementById('hrEmpFilterClearBtn');
+    if(hrEmpClearBtn){
+      hrEmpClearBtn.addEventListener('click', function(){
+        hrEmployeeFilter = '';
+        hrPage = 1;
+        renderHrScreen();
+      });
+    }
     body.querySelectorAll('[data-hr-page]').forEach(function(btn){
       btn.addEventListener('click', function(){
         hrPage = parseInt(btn.getAttribute('data-hr-page'), 10);
@@ -5708,6 +5766,7 @@
     document.getElementById('hrOpenBtn').addEventListener('click', function(){
       hrPeriodMode = 'month';
       hrTypeMode = 'all';
+      hrEmployeeFilter = '';
       renderHrScreen();
       document.getElementById('hrScreen').classList.add('open');
     });
@@ -5833,6 +5892,7 @@
       employeeWorkLocations = empOpts.workLocations;
       attendanceTypes = empOpts.attendanceTypes;
       evaluations = await loadEvaluations();
+      await migrateEvaluationEmployeeNames();
       var backupReminderData = await loadBackupReminder();
       backupReminderDays = backupReminderData.days != null ? backupReminderData.days : 7;
       lastBackupDate = backupReminderData.last || null;
