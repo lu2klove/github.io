@@ -2995,8 +2995,10 @@
       var idx = currentEmployeeCertifications.indexOf(c);
       html += '<div class="rule-card" style="margin-bottom:8px;padding:10px 12px;">';
       html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
-      html += '<div><p style="font-weight:700;font-size:13.5px;">'+escapeHtml(c.name||'')+'</p>';
-      html += '<p style="font-size:12px;color:var(--ink-faint);margin-top:2px;">'+escapeHtml(c.date||'-')+(c.org?' · '+escapeHtml(c.org):'')+'</p></div>';
+      html += '<div><p style="font-weight:700;font-size:13.5px;">'+escapeHtml(c.name||'')+(c.grade?' <span style="font-size:11px;font-weight:400;color:var(--ink-faint);">('+escapeHtml(c.grade)+')</span>':'')+'</p>';
+      html += '<p style="font-size:12px;color:var(--ink-faint);margin-top:2px;">'+escapeHtml(c.date||'-')+(c.org?' · '+escapeHtml(c.org):'')+(c.number?' · 번호 '+escapeHtml(c.number):'')+'</p>';
+      if(c.validUntil) html += '<p style="font-size:11.5px;color:var(--ink-faint);margin-top:2px;">유효기한: '+escapeHtml(c.validUntil)+'</p>';
+      html += '</div>';
       html += '<button class="danger" data-cert-del="'+idx+'" type="button" style="padding:4px 10px;font-size:11.5px;flex-shrink:0;">삭제</button>';
       html += '</div></div>';
     });
@@ -3032,22 +3034,228 @@
     var wrap = document.getElementById('emp_certList');
     var html = '<div class="rule-card" style="margin-bottom:8px;">';
     html += '<div class="field"><span class="field-label">자격증명</span><input type="text" id="cert_name" placeholder="예: 정보처리기사"></div>';
-    html += '<div class="field"><span class="field-label">취득일</span><input type="date" id="cert_date"></div>';
-    html += '<div class="field"><span class="field-label">취득기관</span><input type="text" id="cert_org" placeholder="선택 입력"></div>';
+    html += '<div class="field"><span class="field-label">자격증 번호</span><input type="text" id="cert_number" placeholder="선택 입력"></div>';
+    html += '<div class="field"><span class="field-label">자격증급수</span><div class="chiprow" id="cert_gradeChips">';
+    ['1급','2급','3급','4급','기타'].forEach(function(g){
+      html += '<button class="chip" data-val="'+g+'" type="button">'+g+'</button>';
+    });
+    html += '</div></div>';
+    html += '<div class="row2"><div class="field"><span class="field-label">취득일</span><input type="date" id="cert_date"></div><div class="field"><span class="field-label">유효일자</span><input type="date" id="cert_validUntil"></div></div>';
+    html += '<div class="field"><span class="field-label">발행기관</span><input type="text" id="cert_org" placeholder="선택 입력"></div>';
     html += '<div class="row2"><button class="cancelbtn" id="cert_cancelBtn" type="button">취소</button><button class="savebtn" id="cert_confirmBtn" type="button">추가</button></div>';
     html += '</div>';
     wrap.insertAdjacentHTML('afterbegin', html);
+    document.querySelectorAll('#cert_gradeChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        var already = c.classList.contains('selected');
+        document.querySelectorAll('#cert_gradeChips .chip').forEach(function(x){ x.classList.remove('selected'); });
+        if(!already) c.classList.add('selected');
+      });
+    });
     document.getElementById('cert_cancelBtn').addEventListener('click', renderEmployeeCertList);
     document.getElementById('cert_confirmBtn').addEventListener('click', function(){
       var name = document.getElementById('cert_name').value.trim();
       if(!name){ document.getElementById('cert_name').focus(); return; }
       currentEmployeeCertifications.push({
         name: name,
+        number: document.getElementById('cert_number').value.trim(),
+        grade: getSelectedChipVal('cert_gradeChips'),
         date: document.getElementById('cert_date').value,
+        validUntil: document.getElementById('cert_validUntil').value,
         org: document.getElementById('cert_org').value.trim()
       });
       certListPage = 1;
       renderEmployeeCertList();
+    });
+  }
+
+  function renderEmployeeEduList(){
+    var wrap = document.getElementById('emp_eduList');
+    var pagerWrap = document.getElementById('emp_eduPager');
+    if(!wrap) return;
+    var sorted = currentEmployeeEducations.slice().sort(function(a,b){ return (b.startDate||'') < (a.startDate||'') ? -1 : 1; });
+    if(sorted.length === 0){
+      wrap.innerHTML = '<p class="empty-inline">등록된 교육 기록이 없어요.</p>';
+      pagerWrap.innerHTML = '';
+      return;
+    }
+    var totalPages = Math.ceil(sorted.length / EDU_PAGE_SIZE);
+    if(eduListPage > totalPages) eduListPage = totalPages;
+    if(eduListPage < 1) eduListPage = 1;
+    var startIdx = (eduListPage-1) * EDU_PAGE_SIZE;
+    var pageItems = sorted.slice(startIdx, startIdx + EDU_PAGE_SIZE);
+
+    var html = '';
+    pageItems.forEach(function(ed){
+      var idx = currentEmployeeEducations.indexOf(ed);
+      var completed = ed.completion === '수료';
+      html += '<div class="rule-card" style="margin-bottom:8px;padding:10px 12px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
+      html += '<div><div style="display:flex;align-items:center;gap:6px;">';
+      html += '<p style="font-weight:700;font-size:13.5px;">'+escapeHtml(ed.name||'')+'</p>';
+      html += '<span style="font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:8px;background:'+(completed?'var(--pine-soft)':'var(--brick-soft)')+';color:'+(completed?'var(--pine)':'var(--brick)')+';">'+(ed.completion||'미지정')+'</span>';
+      html += '</div>';
+      html += '<p style="font-size:12px;color:var(--ink-faint);margin-top:2px;">'+escapeHtml(ed.startDate||'-')+' ~ '+escapeHtml(ed.endDate||'-')+(ed.org?' · '+escapeHtml(ed.org):'')+'</p>';
+      if(ed.cost) html += '<p style="font-size:11.5px;color:var(--ink-faint);margin-top:2px;">교육비: '+formatWon(ed.cost)+'원</p>';
+      html += '</div>';
+      html += '<button class="danger" data-edu-del="'+idx+'" type="button" style="padding:4px 10px;font-size:11.5px;flex-shrink:0;">삭제</button>';
+      html += '</div></div>';
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('[data-edu-del]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var idx = parseInt(btn.getAttribute('data-edu-del'), 10);
+        currentEmployeeEducations.splice(idx, 1);
+        renderEmployeeEduList();
+      });
+    });
+
+    var pagerHtml = '';
+    if(totalPages > 1){
+      var groupStart = getPageGroupStart(eduListPage);
+      var groupEnd = Math.min(groupStart+4, totalPages);
+      if(groupStart > 1) pagerHtml += '<button class="pagebtn pagegroup" data-edu-goto="'+(groupStart-1)+'" type="button">‹</button>';
+      for(var p=groupStart; p<=groupEnd; p++){
+        pagerHtml += '<button class="pagebtn'+(p===eduListPage?' active':'')+'" data-edu-page="'+p+'" type="button">'+p+'</button>';
+      }
+      if(groupEnd < totalPages) pagerHtml += '<button class="pagebtn pagegroup" data-edu-goto="'+(groupEnd+1)+'" type="button">›</button>';
+    }
+    pagerWrap.innerHTML = pagerHtml;
+    pagerWrap.querySelectorAll('[data-edu-page]').forEach(function(btn){
+      btn.addEventListener('click', function(){ eduListPage = parseInt(btn.getAttribute('data-edu-page'), 10); renderEmployeeEduList(); });
+    });
+    pagerWrap.querySelectorAll('[data-edu-goto]').forEach(function(btn){
+      btn.addEventListener('click', function(){ eduListPage = parseInt(btn.getAttribute('data-edu-goto'), 10); renderEmployeeEduList(); });
+    });
+  }
+
+  function openEduInlineForm(){
+    var wrap = document.getElementById('emp_eduList');
+    var html = '<div class="rule-card" style="margin-bottom:8px;">';
+    html += '<div class="field"><span class="field-label">교육명</span><input type="text" id="edu_name" placeholder="예: 신입사원 OJT"></div>';
+    html += '<div class="row2"><div class="field"><span class="field-label">시작일</span><input type="date" id="edu_startDate"></div><div class="field"><span class="field-label">종료일</span><input type="date" id="edu_endDate"></div></div>';
+    html += '<div class="field"><span class="field-label">교육기관</span><input type="text" id="edu_org" placeholder="선택 입력"></div>';
+    html += '<div class="field"><span class="field-label">수료여부</span><div class="chiprow" id="edu_completionChips">';
+    ['수료','미수료'].forEach(function(g){ html += '<button class="chip" data-val="'+g+'" type="button">'+g+'</button>'; });
+    html += '</div></div>';
+    html += '<div class="field"><span class="field-label">교육비</span><input type="number" id="edu_cost" placeholder="예: 300000"></div>';
+    html += '<div class="row2"><button class="cancelbtn" id="edu_cancelBtn" type="button">취소</button><button class="savebtn" id="edu_confirmBtn" type="button">추가</button></div>';
+    html += '</div>';
+    wrap.insertAdjacentHTML('afterbegin', html);
+    document.querySelectorAll('#edu_completionChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        var already = c.classList.contains('selected');
+        document.querySelectorAll('#edu_completionChips .chip').forEach(function(x){ x.classList.remove('selected'); });
+        if(!already) c.classList.add('selected');
+      });
+    });
+    document.getElementById('edu_cancelBtn').addEventListener('click', renderEmployeeEduList);
+    document.getElementById('edu_confirmBtn').addEventListener('click', function(){
+      var name = document.getElementById('edu_name').value.trim();
+      if(!name){ document.getElementById('edu_name').focus(); return; }
+      var costVal = parseFloat(document.getElementById('edu_cost').value);
+      currentEmployeeEducations.push({
+        name: name,
+        startDate: document.getElementById('edu_startDate').value,
+        endDate: document.getElementById('edu_endDate').value,
+        org: document.getElementById('edu_org').value.trim(),
+        completion: getSelectedChipVal('edu_completionChips'),
+        cost: isNaN(costVal) ? null : costVal
+      });
+      eduListPage = 1;
+      renderEmployeeEduList();
+    });
+  }
+
+  function renderEmployeeApptList(){
+    var wrap = document.getElementById('emp_apptList');
+    var pagerWrap = document.getElementById('emp_apptPager');
+    if(!wrap) return;
+    var sorted = currentEmployeeAppointments.slice().sort(function(a,b){ return (b.date||'') < (a.date||'') ? -1 : 1; });
+    if(sorted.length === 0){
+      wrap.innerHTML = '<p class="empty-inline">등록된 인사발령 기록이 없어요.</p>';
+      pagerWrap.innerHTML = '';
+      return;
+    }
+    var totalPages = Math.ceil(sorted.length / APPT_PAGE_SIZE);
+    if(apptListPage > totalPages) apptListPage = totalPages;
+    if(apptListPage < 1) apptListPage = 1;
+    var startIdx = (apptListPage-1) * APPT_PAGE_SIZE;
+    var pageItems = sorted.slice(startIdx, startIdx + APPT_PAGE_SIZE);
+
+    var html = '';
+    pageItems.forEach(function(a){
+      var idx = currentEmployeeAppointments.indexOf(a);
+      html += '<div class="rule-card" style="margin-bottom:8px;padding:10px 12px;">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">';
+      html += '<div><div style="display:flex;align-items:center;gap:6px;">';
+      html += '<p style="font-weight:700;font-size:13.5px;">'+escapeHtml(a.name||'')+'</p>';
+      if(a.kind) html += '<span style="font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:8px;background:var(--amber-soft);color:var(--amber);">'+escapeHtml(a.kind)+'</span>';
+      html += '</div>';
+      html += '<p style="font-size:12px;color:var(--ink-faint);margin-top:2px;">'+escapeHtml(a.date||'-')+(a.department?' · '+escapeHtml(a.department):'')+'</p>';
+      html += '</div>';
+      html += '<button class="danger" data-appt-del="'+idx+'" type="button" style="padding:4px 10px;font-size:11.5px;flex-shrink:0;">삭제</button>';
+      html += '</div></div>';
+    });
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('[data-appt-del]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var idx = parseInt(btn.getAttribute('data-appt-del'), 10);
+        currentEmployeeAppointments.splice(idx, 1);
+        renderEmployeeApptList();
+      });
+    });
+
+    var pagerHtml = '';
+    if(totalPages > 1){
+      var groupStart = getPageGroupStart(apptListPage);
+      var groupEnd = Math.min(groupStart+4, totalPages);
+      if(groupStart > 1) pagerHtml += '<button class="pagebtn pagegroup" data-appt-goto="'+(groupStart-1)+'" type="button">‹</button>';
+      for(var p=groupStart; p<=groupEnd; p++){
+        pagerHtml += '<button class="pagebtn'+(p===apptListPage?' active':'')+'" data-appt-page="'+p+'" type="button">'+p+'</button>';
+      }
+      if(groupEnd < totalPages) pagerHtml += '<button class="pagebtn pagegroup" data-appt-goto="'+(groupEnd+1)+'" type="button">›</button>';
+    }
+    pagerWrap.innerHTML = pagerHtml;
+    pagerWrap.querySelectorAll('[data-appt-page]').forEach(function(btn){
+      btn.addEventListener('click', function(){ apptListPage = parseInt(btn.getAttribute('data-appt-page'), 10); renderEmployeeApptList(); });
+    });
+    pagerWrap.querySelectorAll('[data-appt-goto]').forEach(function(btn){
+      btn.addEventListener('click', function(){ apptListPage = parseInt(btn.getAttribute('data-appt-goto'), 10); renderEmployeeApptList(); });
+    });
+  }
+
+  function openApptInlineForm(){
+    var wrap = document.getElementById('emp_apptList');
+    var html = '<div class="rule-card" style="margin-bottom:8px;">';
+    html += '<div class="field"><span class="field-label">발령명</span><input type="text" id="appt_name" placeholder="예: 부서 이동"></div>';
+    html += '<div class="field"><span class="field-label">발령일</span><input type="date" id="appt_date"></div>';
+    html += '<div class="field"><span class="field-label">발령유형</span><div class="chiprow" id="appt_kindChips">';
+    ['정기발령','수시발령'].forEach(function(g){ html += '<button class="chip" data-val="'+g+'" type="button">'+g+'</button>'; });
+    html += '</div></div>';
+    html += '<div class="field"><span class="field-label">발령부서</span><input type="text" id="appt_department" placeholder="선택 입력"></div>';
+    html += '<div class="row2"><button class="cancelbtn" id="appt_cancelBtn" type="button">취소</button><button class="savebtn" id="appt_confirmBtn" type="button">추가</button></div>';
+    html += '</div>';
+    wrap.insertAdjacentHTML('afterbegin', html);
+    document.querySelectorAll('#appt_kindChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        var already = c.classList.contains('selected');
+        document.querySelectorAll('#appt_kindChips .chip').forEach(function(x){ x.classList.remove('selected'); });
+        if(!already) c.classList.add('selected');
+      });
+    });
+    document.getElementById('appt_cancelBtn').addEventListener('click', renderEmployeeApptList);
+    document.getElementById('appt_confirmBtn').addEventListener('click', function(){
+      var name = document.getElementById('appt_name').value.trim();
+      if(!name){ document.getElementById('appt_name').focus(); return; }
+      currentEmployeeAppointments.push({
+        name: name,
+        date: document.getElementById('appt_date').value,
+        kind: getSelectedChipVal('appt_kindChips'),
+        department: document.getElementById('appt_department').value.trim()
+      });
+      apptListPage = 1;
+      renderEmployeeApptList();
     });
   }
 
@@ -3057,7 +3265,11 @@
     currentEmployeePhoto = e.photo || null;
     currentEmployeeAwards = (e.awards || []).slice();
     currentEmployeeCertifications = (e.certifications || []).slice();
+    currentEmployeeEducations = (e.educations || []).slice();
+    currentEmployeeAppointments = (e.appointments || []).slice();
     certListPage = 1;
+    eduListPage = 1;
+    apptListPage = 1;
     var body = document.getElementById('employeeFormBody');
     var html = '';
     html += '<div style="display:flex;justify-content:center;margin-bottom:14px;"><div id="emp_photoPreview">'+employeePhotoPreviewHTML()+'</div></div>';
@@ -3070,6 +3282,17 @@
     html += '</div></div>';
     html += '<div class="row2"><div class="field"><span class="field-label">사원번호</span><input type="text" id="emp_employeeNumber" placeholder="예: 2024001" value="'+escapeHtml(e.employeeNumber||'')+'"></div><div class="field"><span class="field-label">생년월일</span><input type="date" id="emp_birthDate" value="'+(e.birthDate||'')+'"></div></div>';
     html += '<div class="field"><span class="field-label">거주지역</span><input type="text" id="emp_region" placeholder="예: 서울 강남구" value="'+escapeHtml(e.region||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">국적</span><input type="text" id="emp_nationality" placeholder="예: 대한민국" value="'+escapeHtml(e.nationality||'')+'"></div>';
+    function radioChips(fieldId, options, current){
+      var h = '<div class="chiprow" id="'+fieldId+'">';
+      options.forEach(function(o){
+        h += '<button class="chip'+(current===o?' selected':'')+'" data-val="'+escapeHtml(o)+'" type="button">'+escapeHtml(o)+'</button>';
+      });
+      h += '</div>';
+      return h;
+    }
+    html += '<div class="field"><span class="field-label">직원구분</span>'+radioChips('emp_employeeTypeChips', ['정규직','계약직','프리랜서'], e.employeeType)+'</div>';
+    html += '<div class="field"><span class="field-label">채용구분</span>'+radioChips('emp_hireTypeChips', ['신입','경력'], e.hireType)+'</div>';
     function optSelect(fieldId, list, current){
       var h = '<select id="'+fieldId+'"><option value="">선택 안 함</option>';
       list.forEach(function(v){
@@ -3109,6 +3332,26 @@
     html += '<div id="emp_certPager" class="pager" style="margin-top:8px;"></div>';
     html += '<button class="cancelbtn" id="emp_certAddBtn" type="button" style="width:100%;margin-top:6px;">+ 자격증 추가</button>';
     html += '</div>';
+    html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+    html += '<p class="field-label field-label-strong" style="margin:0;">📚 교육현황</p>';
+    html += '<button class="cancelbtn" id="emp_eduToggleBtn" type="button" style="font-size:11.5px;padding:5px 10px;">펼치기 ▾</button>';
+    html += '</div>';
+    html += '<div id="emp_eduSection" style="display:none;">';
+    html += '<div id="emp_eduList"></div>';
+    html += '<div id="emp_eduPager" class="pager" style="margin-top:8px;"></div>';
+    html += '<button class="cancelbtn" id="emp_eduAddBtn" type="button" style="width:100%;margin-top:6px;">+ 교육 추가</button>';
+    html += '</div>';
+    html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+    html += '<p class="field-label field-label-strong" style="margin:0;">🗂️ 인사발령</p>';
+    html += '<button class="cancelbtn" id="emp_apptToggleBtn" type="button" style="font-size:11.5px;padding:5px 10px;">펼치기 ▾</button>';
+    html += '</div>';
+    html += '<div id="emp_apptSection" style="display:none;">';
+    html += '<div id="emp_apptList"></div>';
+    html += '<div id="emp_apptPager" class="pager" style="margin-top:8px;"></div>';
+    html += '<button class="cancelbtn" id="emp_apptAddBtn" type="button" style="width:100%;margin-top:6px;">+ 인사발령 추가</button>';
+    html += '</div>';
     html += '<div class="row2">';
     html += '<button class="cancelbtn" id="emp_cancelBtn" type="button">취소</button>';
     html += '<button class="savebtn" id="emp_saveBtn" type="button">'+(existing?'수정 저장':'직원 등록')+'</button>';
@@ -3118,23 +3361,37 @@
     }
     body.innerHTML = html;
     wireEmployeePhotoField();
-    document.querySelectorAll('#emp_genderChips .chip').forEach(function(c){
-      c.addEventListener('click', function(){
-        var already = c.classList.contains('selected');
-        document.querySelectorAll('#emp_genderChips .chip').forEach(function(x){ x.classList.remove('selected'); });
-        if(!already) c.classList.add('selected');
+    function wireSingleSelectChips(containerId){
+      document.querySelectorAll('#'+containerId+' .chip').forEach(function(c){
+        c.addEventListener('click', function(){
+          var already = c.classList.contains('selected');
+          document.querySelectorAll('#'+containerId+' .chip').forEach(function(x){ x.classList.remove('selected'); });
+          if(!already) c.classList.add('selected');
+        });
       });
-    });
+    }
+    wireSingleSelectChips('emp_genderChips');
+    wireSingleSelectChips('emp_employeeTypeChips');
+    wireSingleSelectChips('emp_hireTypeChips');
     renderEmployeeAwardsList();
     renderEmployeeCertList();
+    renderEmployeeEduList();
+    renderEmployeeApptList();
     document.getElementById('emp_awardAddBtn').addEventListener('click', openAwardInlineForm);
     document.getElementById('emp_certAddBtn').addEventListener('click', openCertInlineForm);
-    document.getElementById('emp_certToggleBtn').addEventListener('click', function(){
-      var sec = document.getElementById('emp_certSection');
-      var isOpen = sec.style.display !== 'none';
-      sec.style.display = isOpen ? 'none' : 'block';
-      this.textContent = isOpen ? '펼치기 ▾' : '접기 ▴';
-    });
+    document.getElementById('emp_eduAddBtn').addEventListener('click', openEduInlineForm);
+    document.getElementById('emp_apptAddBtn').addEventListener('click', openApptInlineForm);
+    function wireCollapseToggle(btnId, sectionId){
+      document.getElementById(btnId).addEventListener('click', function(){
+        var sec = document.getElementById(sectionId);
+        var isOpen = sec.style.display !== 'none';
+        sec.style.display = isOpen ? 'none' : 'block';
+        this.textContent = isOpen ? '펼치기 ▾' : '접기 ▴';
+      });
+    }
+    wireCollapseToggle('emp_certToggleBtn', 'emp_certSection');
+    wireCollapseToggle('emp_eduToggleBtn', 'emp_eduSection');
+    wireCollapseToggle('emp_apptToggleBtn', 'emp_apptSection');
     document.getElementById('emp_cancelBtn').addEventListener('click', function(){ closeSheet('employeeFormSheet'); });
     document.getElementById('emp_saveBtn').addEventListener('click', saveEmployeeForm);
     var delBtn = document.getElementById('emp_deleteBtn');
@@ -3147,6 +3404,10 @@
       });
     }
     openSheet('employeeFormSheet');
+  }
+  function getSelectedChipVal(containerId){
+    var sel = document.querySelector('#'+containerId+' .chip.selected');
+    return sel ? sel.getAttribute('data-val') : null;
   }
   async function saveEmployeeForm(){
     var name = document.getElementById('emp_name').value.trim();
@@ -3161,6 +3422,9 @@
       employeeNumber: document.getElementById('emp_employeeNumber').value.trim(),
       birthDate: document.getElementById('emp_birthDate').value,
       region: document.getElementById('emp_region').value.trim(),
+      nationality: document.getElementById('emp_nationality').value.trim(),
+      employeeType: getSelectedChipVal('emp_employeeTypeChips'),
+      hireType: getSelectedChipVal('emp_hireTypeChips'),
       company: document.getElementById('emp_company').value.trim(),
       department: document.getElementById('emp_department').value.trim(),
       project: document.getElementById('emp_project').value.trim(),
@@ -3175,6 +3439,8 @@
       overtimePayMax: (function(){ var v = parseFloat(document.getElementById('emp_overtimePayMax').value); return isNaN(v) ? null : v; })(),
       awards: currentEmployeeAwards.slice(),
       certifications: currentEmployeeCertifications.slice(),
+      educations: currentEmployeeEducations.slice(),
+      appointments: currentEmployeeAppointments.slice(),
       photo: currentEmployeePhoto || null
     };
     if(editingEmployeeId){
@@ -4074,8 +4340,14 @@
   var currentEmployeePhoto = null;
   var currentEmployeeAwards = [];
   var currentEmployeeCertifications = [];
+  var currentEmployeeEducations = [];
+  var currentEmployeeAppointments = [];
   var CERT_PAGE_SIZE = 5;
   var certListPage = 1;
+  var EDU_PAGE_SIZE = 5;
+  var eduListPage = 1;
+  var APPT_PAGE_SIZE = 5;
+  var apptListPage = 1;
   function employeePhotoPreviewHTML(){
     if(currentEmployeePhoto){
       return '<div style="position:relative;display:inline-block;">'+
