@@ -5218,7 +5218,7 @@
     var html = '';
     html += '<p class="field-label field-label-strong">📅 기간</p>';
     html += '<div class="chiprow" id="hrPeriodChips" style="margin-bottom:16px;">';
-    [['lastweek','전주'],['week','이번주'],['lastmonth','전달'],['month','이번달'],['quarter','분기'],['half','반기']].forEach(function(p){
+    [['lastweek','전주'],['week','이번주'],['lastmonth','전달'],['month','이번달'],['quarter','분기'],['half','반기'],['year','연간']].forEach(function(p){
       html += '<button class="chip'+(hrPeriodMode===p[0]?' selected':'')+'" data-val="'+p[0]+'" type="button">'+p[1]+'</button>';
     });
     var monthPickLabel = (hrPeriodMode === 'specificmonth') ? ('📅 '+statsSpecificYear+'.'+(statsSpecificMonth+1)) : '📅 월 선택';
@@ -5281,7 +5281,7 @@
         if(empCounts[name][e.workType] != null) empCounts[name][e.workType]++;
       });
       html += '<p class="card-title">유형별 · 직원별 통계</p>';
-      var showLeaveCols = (hrPeriodMode === 'specificyear' && hrTypeMode === '휴가');
+      var showLeaveCols = ((hrPeriodMode === 'specificyear' || hrPeriodMode === 'year') && hrTypeMode === '휴가');
       html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:'+(120+usedTypes.length*70+(showLeaveCols?160:0))+'px;">';
       html += '<thead><tr><th>직원</th>';
       usedTypes.forEach(function(t){ html += '<th>'+t+'</th>'; });
