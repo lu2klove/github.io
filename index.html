@@ -3552,6 +3552,19 @@
   function countTardiness(employeeId, year){
     return countAttendanceByType(employeeId, year, '지각');
   }
+  // 직원정보에 등록된 자격증/교육 현황에서, 평가연도에 취득/이수한 건수를 세요.
+  function countEmployeeCertificationsByYear(employeeId, year){
+    if(!employeeId || !year) return 0;
+    var emp = employees.find(function(x){ return x.id === employeeId; });
+    if(!emp || !Array.isArray(emp.certifications)) return 0;
+    return emp.certifications.filter(function(c){ return c.date && c.date.slice(0,4) === String(year); }).length;
+  }
+  function countEmployeeEducationsByYear(employeeId, year){
+    if(!employeeId || !year) return 0;
+    var emp = employees.find(function(x){ return x.id === employeeId; });
+    if(!emp || !Array.isArray(emp.educations)) return 0;
+    return emp.educations.filter(function(ed){ return ed.startDate && ed.startDate.slice(0,4) === String(year); }).length;
+  }
   // 예전에 저장된 인사평가는 이름을 스냅샷으로 안 갖고 있어서, 직원이
   // 나중에 삭제되면 "(삭제된 직원)"으로 보였어요. 아직 직원이 목록에
   // 남아있는 지금 시점에 이름을 한 번만 실제로 박아넣어서, 나중에 그
@@ -3643,7 +3656,10 @@
     html += '</div>';
 
     html += '<p class="field-label field-label-strong" style="margin-top:14px;">🌱 자기계발 (최대 10)</p>';
-    html += checkboxGroupHTML(SELFDEV_ITEMS, 'selfdev', e.selfdevItems, { training: '올해 '+countAttendanceByType(initialEmpId, initialYear, '교육')+'회 발생' });
+    html += checkboxGroupHTML(SELFDEV_ITEMS, 'selfdev', e.selfdevItems, {
+      license: '등록된 자격증 '+countEmployeeCertificationsByYear(initialEmpId, initialYear)+'건',
+      training: '등록된 교육 '+countEmployeeEducationsByYear(initialEmpId, initialYear)+'건 · 근태기록 '+countAttendanceByType(initialEmpId, initialYear, '교육')+'회'
+    });
     html += '<p class="savehint" style="font-weight:700;" id="ev_selfdevTotal">자기계발 합계: 0 / 10</p>';
 
     html += '<div class="rule-card" style="margin:14px 0;"><div style="display:flex;justify-content:space-between;"><span>평가점수 (base)</span><b id="ev_baseDisplay">0</b></div></div>';
@@ -3791,7 +3807,9 @@
       var overtimeEl = document.getElementById('ev_overtimeCount');
       if(overtimeEl) overtimeEl.textContent = '— 야근 '+countAttendanceByType(empId, year, '야근')+'회';
       var trainingEl = document.querySelector('.selfdev-extrainfo[data-key="training"]');
-      if(trainingEl) trainingEl.textContent = '올해 '+countAttendanceByType(empId, year, '교육')+'회 발생';
+      if(trainingEl) trainingEl.textContent = '등록된 교육 '+countEmployeeEducationsByYear(empId, year)+'건 · 근태기록 '+countAttendanceByType(empId, year, '교육')+'회';
+      var licenseEl = document.querySelector('.selfdev-extrainfo[data-key="license"]');
+      if(licenseEl) licenseEl.textContent = '등록된 자격증 '+countEmployeeCertificationsByYear(empId, year)+'건';
       var tardyEl = document.querySelector('.penalty-extrainfo[data-key="tardiness"]');
       if(tardyEl) tardyEl.textContent = '올해 '+countAttendanceByType(empId, year, '지각')+'회 발생';
       var negligenceEl = document.querySelector('.penalty-extrainfo[data-key="negligence"]');
