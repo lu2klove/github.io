@@ -1032,7 +1032,7 @@
     <button class="side-back" id="hrBackBtn" type="button">‹ 뒤로</button>
     <span class="side-title">🧑‍💼 인사관리</span>
     <div style="display:flex;gap:6px;">
-      <button class="side-back" id="hrSettingsBtn" type="button" aria-label="직원 등록">⚙️</button>
+      <button class="side-back" id="hrSettingsBtn" type="button" aria-label="직원 관리">⚙️</button>
       <button class="side-back" id="hrEvalBtn" type="button" aria-label="인사평가">📋</button>
     </div>
   </div>
@@ -1044,7 +1044,7 @@
 <div class="side-screen" id="employeeSettingsScreen">
   <div class="side-header">
     <button class="side-back" id="employeeSettingsBackBtn" type="button">‹ 뒤로</button>
-    <span class="side-title">👤 직원 등록</span>
+    <span class="side-title">👤 직원 관리</span>
     <span style="width:44px;"></span>
   </div>
   <div class="side-scroll-wrap">
@@ -2617,28 +2617,171 @@
     wireEditableList('eo_attendtype', attendanceTypes, saveEmployeeOptions, DEFAULT_ATTENDANCE_TYPES, renderEmployeeOptionsScreen);
   }
 
+  var DONUT_COLOR_PALETTE = ['var(--pine)','var(--amber)','var(--brick)','var(--olive)','#6C8EBF','#9673A6','#D6B656','#82B366','#B85450','#8C9EFF'];
+
+  function renderMiniDonutHTML(title, counts){
+    var labels = Object.keys(counts).filter(function(k){ return counts[k] > 0; });
+    var total = labels.reduce(function(s,k){ return s + counts[k]; }, 0);
+    var html = '<div style="flex:1;min-width:140px;text-align:center;">';
+    html += '<p style="font-size:12.5px;font-weight:700;color:var(--ink-soft);margin-bottom:8px;">'+escapeHtml(title)+'</p>';
+    if(total === 0){
+      html += '<p class="empty-inline" style="font-size:12px;">데이터 없음</p></div>';
+      return html;
+    }
+    var gradientParts = [];
+    var cumPct = 0;
+    labels.forEach(function(k, i){
+      var pct = counts[k] / total * 100;
+      var color = DONUT_COLOR_PALETTE[i % DONUT_COLOR_PALETTE.length];
+      gradientParts.push(color + ' ' + cumPct + '% ' + (cumPct+pct) + '%');
+      cumPct += pct;
+    });
+    html += '<div style="display:flex;justify-content:center;margin-bottom:8px;">';
+    html += '<div style="width:92px;height:92px;border-radius:50%;background:conic-gradient('+gradientParts.join(', ')+');display:flex;align-items:center;justify-content:center;">';
+    html += '<div style="width:58px;height:58px;border-radius:50%;background:var(--paper-raised);display:flex;flex-direction:column;align-items:center;justify-content:center;">';
+    html += '<span style="font-size:14px;font-weight:700;">'+total+'</span><span style="font-size:9px;color:var(--ink-faint);">명</span>';
+    html += '</div></div></div>';
+    labels.forEach(function(k, i){
+      var color = DONUT_COLOR_PALETTE[i % DONUT_COLOR_PALETTE.length];
+      html += '<div style="display:flex;align-items:center;gap:5px;font-size:10.5px;justify-content:center;margin-bottom:2px;">';
+      html += '<span style="width:7px;height:7px;border-radius:50%;background:'+color+';display:inline-block;flex-shrink:0;"></span>';
+      html += '<span style="color:var(--ink-soft);">'+escapeHtml(k)+' '+counts[k]+'명</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+    return html;
+  }
+
+  function countByField(list, field){
+    var counts = {};
+    list.forEach(function(emp){
+      var v = emp[field] || '미지정';
+      counts[v] = (counts[v] || 0) + 1;
+    });
+    return counts;
+  }
+
+  function computeEmployeeStats(){
+    var active = employees.filter(function(e){ return !e.resignDate; });
+    var resigned = employees.filter(function(e){ return !!e.resignDate; });
+    var total = employees.length;
+
+    // 장기근속자: 재직 중이면서 입사일로부터 3년 이상 지난 경우
+    var now = new Date();
+    var longTenure = active.filter(function(e){
+      if(!e.hireDate) return false;
+      var hire = new Date(e.hireDate);
+      var years = (now - hire) / (1000*60*60*24*365.25);
+      return years >= 3;
+    });
+
+    return {
+      active: active,
+      resigned: resigned,
+      total: total,
+      longTenureCount: longTenure.length,
+      longTenurePct: active.length > 0 ? (longTenure.length/active.length*100) : 0,
+      turnoverPct: total > 0 ? (resigned.length/total*100) : 0
+    };
+  }
+
   function renderEmployeeSettingsScreen(){
     var body = document.getElementById('employeeSettingsBody');
     var html = '';
     html += '<button class="savebtn" id="addEmployeeBtn" type="button" style="width:100%;margin-bottom:16px;">+ 새 직원 등록</button>';
+
     if(employees.length === 0){
       html += '<p class="empty-inline">등록된 직원이 없어요.</p>';
-    }else{
-      employees.forEach(function(emp){
-        html += '<div class="record-item">';
-        html += '<div class="record-top" style="align-items:center;">';
-        if(emp.photo){
-          html += '<img src="'+emp.photo+'" style="width:32px;height:32px;object-fit:cover;border-radius:50%;margin-right:6px;">';
-        }
-        html += '<span class="record-badge" style="background:var(--amber-soft);color:var(--amber);">👤 '+escapeHtml(emp.name)+'</span>';
-        html += '<span style="font-size:12px;color:var(--ink-faint);">'+escapeHtml(emp.position||'')+'</span></div>';
-        html += '<p class="record-sub">'+escapeHtml([emp.company,emp.department,emp.project,emp.job].filter(Boolean).join(' · ')||'-')+'</p>';
-        html += '<div class="record-actions">';
-        html += '<button class="cancelbtn" data-emp-edit="'+emp.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">수정</button>';
-        html += '<button class="danger" data-emp-del="'+emp.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">삭제</button>';
-        html += '</div></div>';
-      });
+      body.innerHTML = html;
+      document.getElementById('addEmployeeBtn').addEventListener('click', function(){ openEmployeeForm(null); });
+      return;
     }
+
+    var stats = computeEmployeeStats();
+
+    // ① 직원 현황 도넛차트 (재직자 기준)
+    html += '<p class="field-label field-label-strong" style="margin-bottom:10px;">📊 직원 현황 (재직자 '+stats.active.length+'명)</p>';
+    html += '<div class="rule-card" style="margin-bottom:16px;">';
+    if(stats.active.length === 0){
+      html += '<p class="empty-inline">재직 중인 직원이 없어요.</p>';
+    }else{
+      html += '<div style="display:flex;flex-wrap:wrap;gap:14px 6px;">';
+      html += renderMiniDonutHTML('부서명', countByField(stats.active, 'department'));
+      html += renderMiniDonutHTML('직무', countByField(stats.active, 'job'));
+      html += renderMiniDonutHTML('직급', countByField(stats.active, 'position'));
+      html += renderMiniDonutHTML('근무지', countByField(stats.active, 'workLocation'));
+      html += '</div>';
+    }
+    html += '</div>';
+
+    // ② 장기근속자 / 퇴사율 통계
+    html += '<div style="display:flex;gap:10px;margin-bottom:20px;">';
+    html += '<div class="rule-card" style="flex:1;text-align:center;">';
+    html += '<p style="font-size:11px;color:var(--ink-faint);">🌳 장기근속자 (3년↑)</p>';
+    html += '<p style="font-size:20px;font-weight:700;margin-top:4px;">'+stats.longTenureCount+'명</p>';
+    html += '<p style="font-size:11.5px;color:var(--ink-faint);">재직자 중 '+stats.longTenurePct.toFixed(0)+'%</p>';
+    html += '</div>';
+    html += '<div class="rule-card" style="flex:1;text-align:center;">';
+    html += '<p style="font-size:11px;color:var(--ink-faint);">🚪 퇴사율</p>';
+    html += '<p style="font-size:20px;font-weight:700;margin-top:4px;color:'+(stats.turnoverPct>=20?'var(--brick)':'var(--ink)')+';">'+stats.turnoverPct.toFixed(0)+'%</p>';
+    html += '<p style="font-size:11.5px;color:var(--ink-faint);">전체 '+stats.total+'명 중 '+stats.resigned.length+'명</p>';
+    html += '</div>';
+    html += '</div>';
+
+    // ③ 직원 목록: 재직자 먼저, 구분선, 퇴사자 나중 — 각 그룹 내에서는 이름순
+    var sortedList = stats.active.slice().sort(function(a,b){ return (a.name||'').localeCompare(b.name||'', 'ko'); })
+      .concat(stats.resigned.slice().sort(function(a,b){ return (a.name||'').localeCompare(b.name||'', 'ko'); }));
+
+    var totalPages = Math.ceil(sortedList.length / EMP_PAGE_SIZE);
+    if(employeeListPage > totalPages) employeeListPage = totalPages || 1;
+    if(employeeListPage < 1) employeeListPage = 1;
+    var startIdx = (employeeListPage-1) * EMP_PAGE_SIZE;
+    var pageItems = sortedList.slice(startIdx, startIdx + EMP_PAGE_SIZE);
+
+    html += '<p class="field-label field-label-strong" style="margin-bottom:8px;">👥 직원 목록 ('+sortedList.length+'명)</p>';
+
+    var dividerInsertedOnThisPage = false;
+    var firstResignedGlobalIdx = stats.active.length; // 정렬된 전체 목록에서 퇴사자가 시작되는 인덱스
+    pageItems.forEach(function(emp, i){
+      var globalIdx = startIdx + i;
+      if(!dividerInsertedOnThisPage && globalIdx === firstResignedGlobalIdx && firstResignedGlobalIdx > 0 && firstResignedGlobalIdx < sortedList.length){
+        html += '<div style="display:flex;align-items:center;gap:8px;margin:14px 0 10px;"><div style="flex:1;height:1px;background:var(--line);"></div><span style="font-size:11.5px;color:var(--ink-faint);">퇴사자</span><div style="flex:1;height:1px;background:var(--line);"></div></div>';
+        dividerInsertedOnThisPage = true;
+      }
+      var isResigned = !!emp.resignDate;
+      html += '<div class="record-item">';
+      html += '<div class="record-top" style="align-items:center;">';
+      html += '<div style="position:relative;display:inline-block;margin-right:6px;">';
+      if(emp.photo){
+        html += '<img src="'+emp.photo+'" style="width:32px;height:32px;object-fit:cover;border-radius:50%;'+(isResigned?'opacity:0.5;':'')+'">';
+      }else{
+        html += '<div style="width:32px;height:32px;border-radius:50%;background:var(--paper-raised);'+(isResigned?'opacity:0.5;':'')+'"></div>';
+      }
+      if(isResigned){
+        html += '<span style="position:absolute;bottom:-2px;right:-4px;background:var(--brick);color:#fff;font-size:8.5px;font-weight:700;padding:1px 4px;border-radius:6px;white-space:nowrap;">퇴사</span>';
+      }
+      html += '</div>';
+      html += '<span class="record-badge" style="background:var(--amber-soft);color:var(--amber);'+(isResigned?'opacity:0.6;':'')+'">👤 '+escapeHtml(emp.name)+'</span>';
+      html += '<span style="font-size:12px;color:var(--ink-faint);">'+escapeHtml(emp.position||'')+'</span></div>';
+      html += '<p class="record-sub">'+escapeHtml([emp.company,emp.department,emp.project,emp.job].filter(Boolean).join(' · ')||'-')+(isResigned?' · <span style="color:var(--brick);">퇴사일 '+escapeHtml(emp.resignDate)+'</span>':'')+'</p>';
+      html += '<div class="record-actions">';
+      html += '<button class="cancelbtn" data-emp-edit="'+emp.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">수정</button>';
+      html += '<button class="danger" data-emp-del="'+emp.id+'" type="button" style="padding:6px 14px;font-size:12.5px;">삭제</button>';
+      html += '</div></div>';
+    });
+
+    if(totalPages > 1){
+      var groupStart = getPageGroupStart(employeeListPage);
+      var groupEnd = Math.min(groupStart+4, totalPages);
+      html += '<div class="pager" style="margin-top:10px;">';
+      if(groupStart > 1) html += '<button class="pagebtn pagegroup" data-emp-goto="'+(groupStart-1)+'" type="button">‹ 이전</button>';
+      for(var p=groupStart; p<=groupEnd; p++){
+        html += '<button class="pagebtn'+(p===employeeListPage?' active':'')+'" data-emp-page="'+p+'" type="button">'+p+'</button>';
+      }
+      if(groupEnd < totalPages) html += '<button class="pagebtn pagegroup" data-emp-goto="'+(groupEnd+1)+'" type="button">다음 ›</button>';
+      html += '</div>';
+    }
+
     body.innerHTML = html;
     document.getElementById('addEmployeeBtn').addEventListener('click', function(){ openEmployeeForm(null); });
     body.querySelectorAll('[data-emp-edit]').forEach(function(btn){
@@ -2656,9 +2799,23 @@
         renderEmployeeSettingsScreen();
       });
     });
+    body.querySelectorAll('[data-emp-page]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        employeeListPage = parseInt(btn.getAttribute('data-emp-page'), 10);
+        renderEmployeeSettingsScreen();
+      });
+    });
+    body.querySelectorAll('[data-emp-goto]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        employeeListPage = parseInt(btn.getAttribute('data-emp-goto'), 10);
+        renderEmployeeSettingsScreen();
+      });
+    });
   }
 
   var editingEmployeeId = null;
+  var employeeListPage = 1;
+  var EMP_PAGE_SIZE = 10;
   function openEmployeeForm(existing){
     editingEmployeeId = existing ? existing.id : null;
     var e = existing || {};
@@ -2688,6 +2845,11 @@
     html += '<div class="row2"><div class="field"><span class="field-label">입사일</span><input type="date" id="emp_hireDate" value="'+(e.hireDate||'')+'"></div><div class="field"><span class="field-label">퇴사일</span><input type="date" id="emp_resignDate" value="'+(e.resignDate||'')+'"></div></div>';
     html += '<div class="row2"><div class="field"><span class="field-label">휴직일</span><input type="date" id="emp_leaveDate" value="'+(e.leaveDate||'')+'"></div><div class="field"><span class="field-label">복직일</span><input type="date" id="emp_returnDate" value="'+(e.returnDate||'')+'"></div></div>';
     html += '<div class="field"><span class="field-label">근무지</span>'+optSelect('emp_workLocation', employeeWorkLocations, e.workLocation)+'</div>';
+    html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
+    html += '<div class="row2">';
+    html += '<div class="field"><span class="field-label">연차개수 (당해년)</span><input type="number" id="emp_annualLeaveDays" placeholder="예: 15" value="'+(e.annualLeaveDays!=null?e.annualLeaveDays:'')+'"></div>';
+    html += '<div class="field"><span class="field-label">야근비 최대 지원금액</span><input type="number" id="emp_overtimePayMax" placeholder="예: 100000" value="'+(e.overtimePayMax!=null?e.overtimePayMax:'')+'"></div>';
+    html += '</div>';
     html += '<div class="row2">';
     html += '<button class="cancelbtn" id="emp_cancelBtn" type="button">취소</button>';
     html += '<button class="savebtn" id="emp_saveBtn" type="button">'+(existing?'수정 저장':'직원 등록')+'</button>';
@@ -2729,6 +2891,8 @@
       leaveDate: document.getElementById('emp_leaveDate').value,
       returnDate: document.getElementById('emp_returnDate').value,
       workLocation: document.getElementById('emp_workLocation').value.trim(),
+      annualLeaveDays: (function(){ var v = parseFloat(document.getElementById('emp_annualLeaveDays').value); return isNaN(v) ? null : v; })(),
+      overtimePayMax: (function(){ var v = parseFloat(document.getElementById('emp_overtimePayMax').value); return isNaN(v) ? null : v; })(),
       photo: currentEmployeePhoto || null
     };
     if(editingEmployeeId){
@@ -5117,10 +5281,13 @@
         if(empCounts[name][e.workType] != null) empCounts[name][e.workType]++;
       });
       html += '<p class="card-title">유형별 · 직원별 통계</p>';
-      html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:'+(120+usedTypes.length*70)+'px;">';
+      var showLeaveCols = (hrPeriodMode === 'specificyear' && hrTypeMode === '휴가');
+      html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:'+(120+usedTypes.length*70+(showLeaveCols?160:0))+'px;">';
       html += '<thead><tr><th>직원</th>';
       usedTypes.forEach(function(t){ html += '<th>'+t+'</th>'; });
-      html += '<th>합계</th></tr></thead><tbody>';
+      html += '<th>합계</th>';
+      if(showLeaveCols){ html += '<th>연가개수</th><th>남은연가</th>'; }
+      html += '</tr></thead><tbody>';
       empOrder.forEach(function(name){
         var isSelectedEmp = (hrEmployeeFilter === name);
         html += '<tr'+(isSelectedEmp?' style="background:var(--amber-soft);"':'')+'>';
@@ -5131,11 +5298,21 @@
           rowTotal += c;
           html += '<td>'+c+'</td>';
         });
-        html += '<td style="font-weight:700;">'+rowTotal+'</td></tr>';
+        html += '<td style="font-weight:700;">'+rowTotal+'</td>';
+        if(showLeaveCols){
+          var empObj = employees.find(function(x){ return x.name === name; });
+          var annualDays = (empObj && empObj.annualLeaveDays != null) ? empObj.annualLeaveDays : null;
+          var usedLeave = empCounts[name]['휴가'] || 0;
+          html += '<td>'+(annualDays!=null?annualDays:'-')+'</td>';
+          html += '<td'+(annualDays!=null && (annualDays-usedLeave)<0?' style="color:var(--brick);font-weight:700;"':'')+'>'+(annualDays!=null?(annualDays-usedLeave):'-')+'</td>';
+        }
+        html += '</tr>';
       });
       html += '<tr style="font-weight:700;"><td>합계</td>';
       usedTypes.forEach(function(t){ html += '<td>'+typeCounts[t]+'</td>'; });
-      html += '<td>'+total+'</td></tr>';
+      html += '<td>'+total+'</td>';
+      if(showLeaveCols){ html += '<td>-</td><td>-</td>'; }
+      html += '</tr>';
       html += '</tbody></table></div>';
     }
 
