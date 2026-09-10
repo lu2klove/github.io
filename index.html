@@ -2847,7 +2847,10 @@
       }
       html += '</div>';
       html += '<span class="record-badge" style="background:var(--amber-soft);color:var(--amber);'+(isDimmed?'opacity:0.6;':'')+'">👤 '+escapeHtml(emp.name)+'</span>';
-      html += '<span style="font-size:12px;color:var(--ink-faint);">'+escapeHtml(emp.position||'')+'</span></div>';
+      var hasAward = (emp.awards||[]).some(function(a){ return a.kind === 'award'; });
+      var hasDiscipline = (emp.awards||[]).some(function(a){ return a.kind === 'discipline'; });
+      var awardMark = (hasAward?'🏅':'') + (hasDiscipline?'⚠️':'');
+      html += '<span style="font-size:12px;color:var(--ink-faint);">'+(awardMark?awardMark+' ':'')+escapeHtml(emp.position||'')+'</span></div>';
       var subLine = escapeHtml([emp.company,emp.department,emp.project,emp.job].filter(Boolean).join(' · ')||'-');
       if(isResigned) subLine += ' · <span style="color:var(--brick);">퇴사일 '+escapeHtml(emp.resignDate)+'</span>';
       else if(isOnLeave) subLine += ' · <span style="color:var(--blue);">휴직일 '+escapeHtml(emp.leaveDate)+'</span>';
@@ -2929,10 +2932,19 @@
       if(a.content) html += '<p style="font-size:12.5px;color:var(--ink-soft);margin-top:2px;">'+escapeHtml(a.content)+'</p>';
       if(a.org) html += '<p style="font-size:11.5px;color:var(--ink-faint);margin-top:2px;">수여기관: '+escapeHtml(a.org)+'</p>';
       html += '</div>';
-      html += '<button class="danger" data-award-del="'+idx+'" type="button" style="padding:4px 10px;font-size:11.5px;flex-shrink:0;">삭제</button>';
+      html += '<div style="display:flex;gap:6px;flex-shrink:0;">';
+      html += '<button class="cancelbtn" data-award-edit="'+idx+'" type="button" style="padding:4px 10px;font-size:11.5px;">수정</button>';
+      html += '<button class="danger" data-award-del="'+idx+'" type="button" style="padding:4px 10px;font-size:11.5px;">삭제</button>';
+      html += '</div>';
       html += '</div></div>';
     });
     wrap.innerHTML = html;
+    wrap.querySelectorAll('[data-award-edit]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var idx = parseInt(btn.getAttribute('data-award-edit'), 10);
+        openAwardInlineForm(idx);
+      });
+    });
     wrap.querySelectorAll('[data-award-del]').forEach(function(btn){
       btn.addEventListener('click', function(){
         var idx = parseInt(btn.getAttribute('data-award-del'), 10);
@@ -2942,18 +2954,20 @@
     });
   }
 
-  function openAwardInlineForm(){
+  function openAwardInlineForm(editIdx){
+    var isEdit = (editIdx != null);
+    var existing = isEdit ? currentEmployeeAwards[editIdx] : null;
     var wrap = document.getElementById('emp_awardsList');
     var html = '<div class="rule-card" style="margin-bottom:8px;">';
     html += '<div class="chiprow" id="award_kindChips" style="margin-bottom:8px;">';
-    html += '<button class="chip selected" data-kind="award" type="button">🏆 상</button>';
-    html += '<button class="chip" data-kind="discipline" type="button">⚠️ 벌</button>';
+    html += '<button class="chip'+(!existing || existing.kind==='award'?' selected':'')+'" data-kind="award" type="button">🏆 상</button>';
+    html += '<button class="chip'+(existing && existing.kind==='discipline'?' selected':'')+'" data-kind="discipline" type="button">⚠️ 벌</button>';
     html += '</div>';
-    html += '<div class="field"><span class="field-label">년도</span><input type="date" id="award_year"></div>';
-    html += '<div class="field"><span class="field-label">명칭</span><input type="text" id="award_title" placeholder="예: 우수사원상"></div>';
-    html += '<div class="field"><span class="field-label">내용</span><input type="text" id="award_content" placeholder="선택 입력"></div>';
-    html += '<div class="field"><span class="field-label">수여기관명</span><input type="text" id="award_org" placeholder="선택 입력"></div>';
-    html += '<div class="row2"><button class="cancelbtn" id="award_cancelBtn" type="button">취소</button><button class="savebtn" id="award_confirmBtn" type="button">추가</button></div>';
+    html += '<div class="field"><span class="field-label">년도</span><input type="date" id="award_year" value="'+(existing?existing.year||'':'')+'"></div>';
+    html += '<div class="field"><span class="field-label">명칭</span><input type="text" id="award_title" placeholder="예: 우수사원상" value="'+(existing?escapeHtml(existing.title||''):'')+'"></div>';
+    html += '<div class="field"><span class="field-label">내용</span><input type="text" id="award_content" placeholder="선택 입력" value="'+(existing?escapeHtml(existing.content||''):'')+'"></div>';
+    html += '<div class="field"><span class="field-label">수여기관명</span><input type="text" id="award_org" placeholder="선택 입력" value="'+(existing?escapeHtml(existing.org||''):'')+'"></div>';
+    html += '<div class="row2"><button class="cancelbtn" id="award_cancelBtn" type="button">취소</button><button class="savebtn" id="award_confirmBtn" type="button">'+(isEdit?'수정 완료':'추가')+'</button></div>';
     html += '</div>';
     wrap.insertAdjacentHTML('afterbegin', html);
     document.querySelectorAll('#award_kindChips .chip').forEach(function(c){
@@ -2968,12 +2982,17 @@
       var year = document.getElementById('award_year').value;
       if(!title){ document.getElementById('award_title').focus(); return; }
       var kind = (document.querySelector('#award_kindChips .chip.selected')||{}).getAttribute ? document.querySelector('#award_kindChips .chip.selected').getAttribute('data-kind') : 'award';
-      currentEmployeeAwards.push({
+      var payload = {
         kind: kind, year: year,
         title: title,
         content: document.getElementById('award_content').value.trim(),
         org: document.getElementById('award_org').value.trim()
-      });
+      };
+      if(isEdit){
+        currentEmployeeAwards[editIdx] = payload;
+      }else{
+        currentEmployeeAwards.push(payload);
+      }
       renderEmployeeAwardsList();
     });
   }
@@ -3230,10 +3249,19 @@
       html += '</div>';
       html += '<p style="font-size:12px;color:var(--ink-faint);margin-top:2px;">'+escapeHtml(a.date||'-')+(a.department?' · '+escapeHtml(a.department):'')+'</p>';
       html += '</div>';
-      html += '<button class="danger" data-appt-del="'+idx+'" type="button" style="padding:4px 10px;font-size:11.5px;flex-shrink:0;">삭제</button>';
+      html += '<div style="display:flex;gap:6px;flex-shrink:0;">';
+      html += '<button class="cancelbtn" data-appt-edit="'+idx+'" type="button" style="padding:4px 10px;font-size:11.5px;">수정</button>';
+      html += '<button class="danger" data-appt-del="'+idx+'" type="button" style="padding:4px 10px;font-size:11.5px;">삭제</button>';
+      html += '</div>';
       html += '</div></div>';
     });
     wrap.innerHTML = html;
+    wrap.querySelectorAll('[data-appt-edit]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var idx = parseInt(btn.getAttribute('data-appt-edit'), 10);
+        openApptInlineForm(idx);
+      });
+    });
     wrap.querySelectorAll('[data-appt-del]').forEach(function(btn){
       btn.addEventListener('click', function(){
         var idx = parseInt(btn.getAttribute('data-appt-del'), 10);
@@ -3261,16 +3289,18 @@
     });
   }
 
-  function openApptInlineForm(){
+  function openApptInlineForm(editIdx){
+    var isEdit = (editIdx != null);
+    var existing = isEdit ? currentEmployeeAppointments[editIdx] : null;
     var wrap = document.getElementById('emp_apptList');
     var html = '<div class="rule-card" style="margin-bottom:8px;">';
-    html += '<div class="field"><span class="field-label">발령명</span><input type="text" id="appt_name" placeholder="예: 부서 이동"></div>';
-    html += '<div class="field"><span class="field-label">발령일</span><input type="date" id="appt_date"></div>';
+    html += '<div class="field"><span class="field-label">발령명</span><input type="text" id="appt_name" placeholder="예: 부서 이동" value="'+(existing?escapeHtml(existing.name||''):'')+'"></div>';
+    html += '<div class="field"><span class="field-label">발령일</span><input type="date" id="appt_date" value="'+(existing?existing.date||'':'')+'"></div>';
     html += '<div class="field"><span class="field-label">발령유형</span><div class="chiprow" id="appt_kindChips">';
-    ['정기발령','수시발령'].forEach(function(g){ html += '<button class="chip" data-val="'+g+'" type="button">'+g+'</button>'; });
+    ['정기발령','수시발령'].forEach(function(g){ html += '<button class="chip'+(existing && existing.kind===g?' selected':'')+'" data-val="'+g+'" type="button">'+g+'</button>'; });
     html += '</div></div>';
-    html += '<div class="field"><span class="field-label">발령부서</span><input type="text" id="appt_department" placeholder="선택 입력"></div>';
-    html += '<div class="row2"><button class="cancelbtn" id="appt_cancelBtn" type="button">취소</button><button class="savebtn" id="appt_confirmBtn" type="button">추가</button></div>';
+    html += '<div class="field"><span class="field-label">발령부서</span><input type="text" id="appt_department" placeholder="선택 입력" value="'+(existing?escapeHtml(existing.department||''):'')+'"></div>';
+    html += '<div class="row2"><button class="cancelbtn" id="appt_cancelBtn" type="button">취소</button><button class="savebtn" id="appt_confirmBtn" type="button">'+(isEdit?'수정 완료':'추가')+'</button></div>';
     html += '</div>';
     wrap.insertAdjacentHTML('afterbegin', html);
     document.querySelectorAll('#appt_kindChips .chip').forEach(function(c){
@@ -3284,13 +3314,18 @@
     document.getElementById('appt_confirmBtn').addEventListener('click', function(){
       var name = document.getElementById('appt_name').value.trim();
       if(!name){ document.getElementById('appt_name').focus(); return; }
-      currentEmployeeAppointments.push({
+      var payload = {
         name: name,
         date: document.getElementById('appt_date').value,
         kind: getSelectedChipVal('appt_kindChips'),
         department: document.getElementById('appt_department').value.trim()
-      });
-      apptListPage = 1;
+      };
+      if(isEdit){
+        currentEmployeeAppointments[editIdx] = payload;
+      }else{
+        currentEmployeeAppointments.push(payload);
+        apptListPage = 1;
+      }
       renderEmployeeApptList();
     });
   }
