@@ -3482,9 +3482,14 @@
     html += '<div class="field"><span class="field-label">야근비 최대 지원금액</span><input type="number" id="emp_overtimePayMax" placeholder="예: 100000" value="'+(e.overtimePayMax!=null?e.overtimePayMax:'')+'"></div>';
     html += '</div>';
     html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
-    html += '<p class="field-label field-label-strong" style="margin-bottom:8px;">🏅 상벌 등록</p>';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
+    html += '<p class="field-label field-label-strong" style="margin:0;">🏅 상벌 등록</p>';
+    html += '<button class="cancelbtn" id="emp_awardToggleBtn" type="button" style="font-size:11.5px;padding:5px 10px;">펼치기 ▾</button>';
+    html += '</div>';
+    html += '<div id="emp_awardSection" style="display:none;">';
     html += '<div id="emp_awardsList"></div>';
     html += '<button class="cancelbtn" id="emp_awardAddBtn" type="button" style="width:100%;margin-top:6px;">+ 상벌 추가</button>';
+    html += '</div>';
     html += '<div style="height:1px;background:var(--line);margin:16px 0;"></div>';
     html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">';
     html += '<p class="field-label field-label-strong" style="margin:0;">📜 자격현황</p>';
@@ -3552,6 +3557,7 @@
         this.textContent = isOpen ? '펼치기 ▾' : '접기 ▴';
       });
     }
+    wireCollapseToggle('emp_awardToggleBtn', 'emp_awardSection');
     wireCollapseToggle('emp_certToggleBtn', 'emp_certSection');
     wireCollapseToggle('emp_eduToggleBtn', 'emp_eduSection');
     wireCollapseToggle('emp_apptToggleBtn', 'emp_apptSection');
