@@ -6019,6 +6019,7 @@
         if(!empCounts[name]){ empCounts[name] = {}; empOrder.push(name); usedTypes.forEach(function(t){ empCounts[name][t]=0; }); }
         if(empCounts[name][e.workType] != null) empCounts[name][e.workType]++;
       });
+      empOrder.sort(function(a,b){ return a.localeCompare(b, 'ko'); });
       html += '<p class="card-title">유형별 · 직원별 통계</p>';
       // 근무형태 이름에 이모지를 직접 붙여 등록한 경우(예: "🏖️휴가")도 정확히
       // "휴가"로 인식하도록, 이모지를 떼어내고 비교해요.
