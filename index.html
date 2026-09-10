@@ -5281,7 +5281,12 @@
         if(empCounts[name][e.workType] != null) empCounts[name][e.workType]++;
       });
       html += '<p class="card-title">유형별 · 직원별 통계</p>';
-      var showLeaveCols = ((hrPeriodMode === 'specificyear' || hrPeriodMode === 'year') && hrTypeMode === '휴가');
+      // 근무형태 이름에 이모지를 직접 붙여 등록한 경우(예: "🏖️휴가")도 정확히
+      // "휴가"로 인식하도록, 이모지를 떼어내고 비교해요.
+      function stripEmojiForCompare(s){
+        return (s||'').replace(/[\u{1F000}-\u{1FFFF}\u{2190}-\u{2BFF}\u{2600}-\u{27BF}\uFE0F]/gu, '').trim();
+      }
+      var showLeaveCols = ((hrPeriodMode === 'specificyear' || hrPeriodMode === 'year') && stripEmojiForCompare(hrTypeMode) === '휴가');
       html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:'+(120+usedTypes.length*70+(showLeaveCols?160:0))+'px;">';
       html += '<thead><tr><th>직원</th>';
       usedTypes.forEach(function(t){ html += '<th>'+t+'</th>'; });
@@ -5302,7 +5307,7 @@
         if(showLeaveCols){
           var empObj = employees.find(function(x){ return x.name === name; });
           var annualDays = (empObj && empObj.annualLeaveDays != null) ? empObj.annualLeaveDays : null;
-          var usedLeave = empCounts[name]['휴가'] || 0;
+          var usedLeave = empCounts[name][hrTypeMode] || 0;
           html += '<td>'+(annualDays!=null?annualDays:'-')+'</td>';
           html += '<td'+(annualDays!=null && (annualDays-usedLeave)<0?' style="color:var(--brick);font-weight:700;"':'')+'>'+(annualDays!=null?(annualDays-usedLeave):'-')+'</td>';
         }
