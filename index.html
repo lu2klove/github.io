@@ -4156,7 +4156,7 @@
 
     var html = '';
     html += '<p class="savehint" style="margin-bottom:6px;">'+(evalYearFilter==='all'?'전체 연도':evalYearFilter+'년')+' 평가 기준으로 자동으로 불러왔어요.</p>';
-    html += '<p class="savehint" style="margin-bottom:12px;">등급별 인원수는 실제 평가 결과로 자동 계산돼요 · 등급%·전체인원 칸은 직접 눌러 값을 입력할 수 있어요.</p>';
+    html += '<p class="savehint" style="margin-bottom:12px;">등급%·전체인원 칸을 직접 눌러 값을 입력하면, 등급별 인원수는 (등급% × 전체인원 ÷ 100)으로 자동 계산돼요.</p>';
     html += '<button class="cancelbtn" id="evalGradeReloadBtn" type="button" style="width:100%;margin-bottom:14px;">🔄 자동 계산값으로 다시 불러오기</button>';
     html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:440px;">';
     html += '<thead><tr><th>등급</th><th># 등급%</th><th>Σ 등급별 인원수</th><th># 전체인원</th></tr></thead><tbody>';
@@ -4165,14 +4165,24 @@
       var autoPct = autoTotal > 0 ? Math.round(count / autoTotal * 100) : 0;
       var pctVal = (evalGradePctManual[g] != null) ? evalGradePctManual[g] : autoPct;
       var totalVal = (evalGradeTotalManual[g] != null) ? evalGradeTotalManual[g] : autoTotal;
+      var computedCount = Math.round(pctVal / 100 * totalVal);
       html += '<tr><td>'+g+'</td>';
       html += '<td><input type="number" min="0" max="100" class="grade-pct-input" data-grade="'+g+'" value="'+pctVal+'" style="width:64px;padding:6px;">%</td>';
-      html += '<td>'+count+'</td>';
+      html += '<td id="grade-count-'+g+'">'+computedCount+'</td>';
       html += '<td><input type="number" min="0" class="grade-total-input" data-grade="'+g+'" value="'+totalVal+'" style="width:70px;padding:6px;"></td>';
       html += '</tr>';
     });
     html += '</tbody></table></div>';
     body.innerHTML = html;
+
+    function recalcRow(g){
+      var pctInp = body.querySelector('.grade-pct-input[data-grade="'+g+'"]');
+      var totalInp = body.querySelector('.grade-total-input[data-grade="'+g+'"]');
+      var p = parseFloat(pctInp.value);
+      var t = parseFloat(totalInp.value);
+      var c = (isNaN(p) || isNaN(t)) ? 0 : Math.round(p / 100 * t);
+      document.getElementById('grade-count-'+g).textContent = c;
+    }
 
     document.getElementById('evalGradeReloadBtn').addEventListener('click', function(){
       evalGradePctManual = {};
@@ -4184,6 +4194,7 @@
         var g = inp.getAttribute('data-grade');
         var v = parseInt(inp.value, 10);
         evalGradePctManual[g] = isNaN(v) ? 0 : v;
+        recalcRow(g);
       });
     });
     body.querySelectorAll('.grade-total-input').forEach(function(inp){
@@ -4191,6 +4202,7 @@
         var g = inp.getAttribute('data-grade');
         var v = parseInt(inp.value, 10);
         evalGradeTotalManual[g] = isNaN(v) ? 0 : v;
+        recalcRow(g);
       });
     });
   }
