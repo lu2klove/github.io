@@ -3113,7 +3113,7 @@
     html += '<div class="field"><span class="field-label">명칭</span><input type="text" id="award_title" placeholder="예: 우수사원상" value="'+(existing?escapeHtml(existing.title||''):'')+'"></div>';
     html += '<div class="field"><span class="field-label">내용</span><input type="text" id="award_content" placeholder="선택 입력" value="'+(existing?escapeHtml(existing.content||''):'')+'"></div>';
     html += '<div class="field"><span class="field-label">수여기관명</span><input type="text" id="award_org" placeholder="선택 입력" value="'+(existing?escapeHtml(existing.org||''):'')+'"></div>';
-    html += '<div class="row2"><button class="cancelbtn" id="award_cancelBtn" type="button">취소</button><button class="savebtn" id="award_confirmBtn" type="button">'+(isEdit?'수정 완료':'추가')+'</button></div>';
+    html += '<div class="row2"><button class="cancelbtn" id="award_cancelBtn" type="button">취소</button><button class="savebtn" id="award_confirmBtn" type="button">'+(isEdit?'수정완료':'등록')+'</button></div>';
     html += '</div>';
     wrap.insertAdjacentHTML('afterbegin', html);
     document.querySelectorAll('#award_kindChips .chip').forEach(function(c){
@@ -3222,7 +3222,7 @@
     html += '</div></div>';
     html += '<div class="row2"><div class="field"><span class="field-label">취득일</span><input type="date" id="cert_date" value="'+(existing?existing.date||'':'')+'"></div><div class="field"><span class="field-label">유효일자</span><input type="date" id="cert_validUntil" value="'+(existing?existing.validUntil||'':'')+'"></div></div>';
     html += '<div class="field"><span class="field-label">발행기관</span><input type="text" id="cert_org" placeholder="선택 입력" value="'+(existing?escapeHtml(existing.org||''):'')+'"></div>';
-    html += '<div class="row2"><button class="cancelbtn" id="cert_cancelBtn" type="button">취소</button><button class="savebtn" id="cert_confirmBtn" type="button">'+(isEdit?'수정 완료':'추가')+'</button></div>';
+    html += '<div class="row2"><button class="cancelbtn" id="cert_cancelBtn" type="button">취소</button><button class="savebtn" id="cert_confirmBtn" type="button">'+(isEdit?'수정완료':'등록')+'</button></div>';
     html += '</div>';
     wrap.insertAdjacentHTML('afterbegin', html);
     document.querySelectorAll('#cert_gradeChips .chip').forEach(function(c){
@@ -3335,7 +3335,7 @@
     ['수료','미수료'].forEach(function(g){ html += '<button class="chip'+(existing && existing.completion===g?' selected':'')+'" data-val="'+g+'" type="button">'+g+'</button>'; });
     html += '</div></div>';
     html += '<div class="field"><span class="field-label">교육비</span><input type="number" id="edu_cost" placeholder="예: 300000" value="'+(existing && existing.cost!=null?existing.cost:'')+'"></div>';
-    html += '<div class="row2"><button class="cancelbtn" id="edu_cancelBtn" type="button">취소</button><button class="savebtn" id="edu_confirmBtn" type="button">'+(isEdit?'수정 완료':'추가')+'</button></div>';
+    html += '<div class="row2"><button class="cancelbtn" id="edu_cancelBtn" type="button">취소</button><button class="savebtn" id="edu_confirmBtn" type="button">'+(isEdit?'수정완료':'등록')+'</button></div>';
     html += '</div>';
     wrap.insertAdjacentHTML('afterbegin', html);
     document.querySelectorAll('#edu_completionChips .chip').forEach(function(c){
@@ -3446,7 +3446,7 @@
     ['정기발령','수시발령'].forEach(function(g){ html += '<button class="chip'+(existing && existing.kind===g?' selected':'')+'" data-val="'+g+'" type="button">'+g+'</button>'; });
     html += '</div></div>';
     html += '<div class="field"><span class="field-label">발령부서</span><input type="text" id="appt_department" placeholder="선택 입력" value="'+(existing?escapeHtml(existing.department||''):'')+'"></div>';
-    html += '<div class="row2"><button class="cancelbtn" id="appt_cancelBtn" type="button">취소</button><button class="savebtn" id="appt_confirmBtn" type="button">'+(isEdit?'수정 완료':'추가')+'</button></div>';
+    html += '<div class="row2"><button class="cancelbtn" id="appt_cancelBtn" type="button">취소</button><button class="savebtn" id="appt_confirmBtn" type="button">'+(isEdit?'수정완료':'등록')+'</button></div>';
     html += '</div>';
     wrap.insertAdjacentHTML('afterbegin', html);
     document.querySelectorAll('#appt_kindChips .chip').forEach(function(c){
@@ -3599,10 +3599,10 @@
     renderEmployeeCertList();
     renderEmployeeEduList();
     renderEmployeeApptList();
-    document.getElementById('emp_awardAddBtn').addEventListener('click', openAwardInlineForm);
-    document.getElementById('emp_certAddBtn').addEventListener('click', openCertInlineForm);
-    document.getElementById('emp_eduAddBtn').addEventListener('click', openEduInlineForm);
-    document.getElementById('emp_apptAddBtn').addEventListener('click', openApptInlineForm);
+    document.getElementById('emp_awardAddBtn').addEventListener('click', function(){ openAwardInlineForm(); });
+    document.getElementById('emp_certAddBtn').addEventListener('click', function(){ openCertInlineForm(); });
+    document.getElementById('emp_eduAddBtn').addEventListener('click', function(){ openEduInlineForm(); });
+    document.getElementById('emp_apptAddBtn').addEventListener('click', function(){ openApptInlineForm(); });
     function wireCollapseToggle(btnId, sectionId){
       document.getElementById(btnId).addEventListener('click', function(){
         var sec = document.getElementById(sectionId);
@@ -4140,8 +4140,8 @@
     renderEvaluationScreen();
   }
   var evalYearFilter = 'all';
-  var evalGradeManualCounts = {};
-  var evalGradeManualTotal = null;
+  var evalGradePctManual = {};
+  var evalGradeTotalManual = {};
 
   function renderEvalGradeTableScreen(){
     var body = document.getElementById('evalGradeTableBody');
@@ -4153,47 +4153,45 @@
       if(autoCounts[g.grade] != null) autoCounts[g.grade]++;
     });
     var gradeOrder = ['E+','E','M+','M','I'];
-    var totalNow = (evalGradeManualTotal != null) ? evalGradeManualTotal : autoTotal;
 
     var html = '';
     html += '<p class="savehint" style="margin-bottom:6px;">'+(evalYearFilter==='all'?'전체 연도':evalYearFilter+'년')+' 평가 기준으로 자동으로 불러왔어요.</p>';
-    html += '<p class="savehint" style="margin-bottom:12px;">등급별 인원수·전체인원 칸을 직접 눌러 값을 바꿀 수 있어요 · 등급%는 그 값에 맞춰 자동으로 다시 계산돼요.</p>';
+    html += '<p class="savehint" style="margin-bottom:12px;">등급별 인원수는 실제 평가 결과로 자동 계산돼요 · 등급%·전체인원 칸은 직접 눌러 값을 입력할 수 있어요.</p>';
     html += '<button class="cancelbtn" id="evalGradeReloadBtn" type="button" style="width:100%;margin-bottom:14px;">🔄 자동 계산값으로 다시 불러오기</button>';
     html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:440px;">';
     html += '<thead><tr><th>등급</th><th># 등급%</th><th>Σ 등급별 인원수</th><th># 전체인원</th></tr></thead><tbody>';
-    gradeOrder.forEach(function(g, idx){
-      var count = (evalGradeManualCounts[g] != null) ? evalGradeManualCounts[g] : autoCounts[g];
-      var pct = totalNow > 0 ? Math.round(count / totalNow * 100) : 0;
-      html += '<tr><td>'+g+'</td><td>'+pct+'%</td>';
-      html += '<td><input type="number" min="0" class="grade-count-input" data-grade="'+g+'" value="'+count+'" style="width:70px;padding:6px;"></td>';
-      // 전체인원은 모든 행에 공통이라, 첫 행에만 입력창을 두고 나머지는 값만 보여줘요.
-      if(idx === 0){
-        html += '<td><input type="number" min="0" id="evalGradeTotalInput" value="'+totalNow+'" style="width:70px;padding:6px;"></td>';
-      }else{
-        html += '<td style="color:var(--ink-faint);">'+totalNow+'</td>';
-      }
+    gradeOrder.forEach(function(g){
+      var count = autoCounts[g] || 0;
+      var autoPct = autoTotal > 0 ? Math.round(count / autoTotal * 100) : 0;
+      var pctVal = (evalGradePctManual[g] != null) ? evalGradePctManual[g] : autoPct;
+      var totalVal = (evalGradeTotalManual[g] != null) ? evalGradeTotalManual[g] : autoTotal;
+      html += '<tr><td>'+g+'</td>';
+      html += '<td><input type="number" min="0" max="100" class="grade-pct-input" data-grade="'+g+'" value="'+pctVal+'" style="width:64px;padding:6px;">%</td>';
+      html += '<td>'+count+'</td>';
+      html += '<td><input type="number" min="0" class="grade-total-input" data-grade="'+g+'" value="'+totalVal+'" style="width:70px;padding:6px;"></td>';
       html += '</tr>';
     });
     html += '</tbody></table></div>';
     body.innerHTML = html;
 
     document.getElementById('evalGradeReloadBtn').addEventListener('click', function(){
-      evalGradeManualCounts = {};
-      evalGradeManualTotal = null;
+      evalGradePctManual = {};
+      evalGradeTotalManual = {};
       renderEvalGradeTableScreen();
     });
-    body.querySelectorAll('.grade-count-input').forEach(function(inp){
+    body.querySelectorAll('.grade-pct-input').forEach(function(inp){
       inp.addEventListener('input', function(){
         var g = inp.getAttribute('data-grade');
         var v = parseInt(inp.value, 10);
-        evalGradeManualCounts[g] = isNaN(v) ? 0 : v;
-        renderEvalGradeTableScreen();
+        evalGradePctManual[g] = isNaN(v) ? 0 : v;
       });
     });
-    document.getElementById('evalGradeTotalInput').addEventListener('input', function(){
-      var v = parseInt(this.value, 10);
-      evalGradeManualTotal = isNaN(v) ? 0 : v;
-      renderEvalGradeTableScreen();
+    body.querySelectorAll('.grade-total-input').forEach(function(inp){
+      inp.addEventListener('input', function(){
+        var g = inp.getAttribute('data-grade');
+        var v = parseInt(inp.value, 10);
+        evalGradeTotalManual[g] = isNaN(v) ? 0 : v;
+      });
     });
   }
 
@@ -6866,8 +6864,8 @@
       document.getElementById('evaluationScreen').classList.remove('open');
     });
     document.getElementById('evalGradeTableBtn').addEventListener('click', function(){
-      evalGradeManualCounts = {};
-      evalGradeManualTotal = null;
+      evalGradePctManual = {};
+      evalGradeTotalManual = {};
       renderEvalGradeTableScreen();
       document.getElementById('evalGradeTableScreen').classList.add('open');
     });
