@@ -4140,28 +4140,61 @@
     renderEvaluationScreen();
   }
   var evalYearFilter = 'all';
+  var evalGradeManualCounts = {};
+  var evalGradeManualTotal = null;
+
   function renderEvalGradeTableScreen(){
     var body = document.getElementById('evalGradeTableBody');
     var filteredEvals = evalYearFilter === 'all' ? evaluations : evaluations.filter(function(e){ return e.year === evalYearFilter; });
-    var totalEvals = filteredEvals.length;
-    var gradeCounts = { 'E+':0, 'E':0, 'M+':0, 'M':0, 'I':0 };
+    var autoTotal = filteredEvals.length;
+    var autoCounts = { 'E+':0, 'E':0, 'M+':0, 'M':0, 'I':0 };
     filteredEvals.forEach(function(ev){
       var g = computeEvalGrade(ev.finalScore, ev.excluded);
-      if(gradeCounts[g.grade] != null) gradeCounts[g.grade]++;
+      if(autoCounts[g.grade] != null) autoCounts[g.grade]++;
     });
     var gradeOrder = ['E+','E','M+','M','I'];
+    var totalNow = (evalGradeManualTotal != null) ? evalGradeManualTotal : autoTotal;
 
     var html = '';
-    html += '<p class="savehint" style="margin-bottom:12px;">'+(evalYearFilter==='all'?'전체 연도':evalYearFilter+'년')+' 평가 기준이에요 · 평가 화면에서 연도를 바꾸면 여기도 함께 바뀌어요.</p>';
-    html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:420px;">';
+    html += '<p class="savehint" style="margin-bottom:6px;">'+(evalYearFilter==='all'?'전체 연도':evalYearFilter+'년')+' 평가 기준으로 자동으로 불러왔어요.</p>';
+    html += '<p class="savehint" style="margin-bottom:12px;">등급별 인원수·전체인원 칸을 직접 눌러 값을 바꿀 수 있어요 · 등급%는 그 값에 맞춰 자동으로 다시 계산돼요.</p>';
+    html += '<button class="cancelbtn" id="evalGradeReloadBtn" type="button" style="width:100%;margin-bottom:14px;">🔄 자동 계산값으로 다시 불러오기</button>';
+    html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:440px;">';
     html += '<thead><tr><th>등급</th><th># 등급%</th><th>Σ 등급별 인원수</th><th># 전체인원</th></tr></thead><tbody>';
-    gradeOrder.forEach(function(g){
-      var count = gradeCounts[g] || 0;
-      var pct = totalEvals > 0 ? Math.round(count / totalEvals * 100) : 0;
-      html += '<tr><td>'+g+'</td><td>'+pct+'%</td><td>'+count+'</td><td>'+totalEvals+'</td></tr>';
+    gradeOrder.forEach(function(g, idx){
+      var count = (evalGradeManualCounts[g] != null) ? evalGradeManualCounts[g] : autoCounts[g];
+      var pct = totalNow > 0 ? Math.round(count / totalNow * 100) : 0;
+      html += '<tr><td>'+g+'</td><td>'+pct+'%</td>';
+      html += '<td><input type="number" min="0" class="grade-count-input" data-grade="'+g+'" value="'+count+'" style="width:70px;padding:6px;"></td>';
+      // 전체인원은 모든 행에 공통이라, 첫 행에만 입력창을 두고 나머지는 값만 보여줘요.
+      if(idx === 0){
+        html += '<td><input type="number" min="0" id="evalGradeTotalInput" value="'+totalNow+'" style="width:70px;padding:6px;"></td>';
+      }else{
+        html += '<td style="color:var(--ink-faint);">'+totalNow+'</td>';
+      }
+      html += '</tr>';
     });
     html += '</tbody></table></div>';
     body.innerHTML = html;
+
+    document.getElementById('evalGradeReloadBtn').addEventListener('click', function(){
+      evalGradeManualCounts = {};
+      evalGradeManualTotal = null;
+      renderEvalGradeTableScreen();
+    });
+    body.querySelectorAll('.grade-count-input').forEach(function(inp){
+      inp.addEventListener('input', function(){
+        var g = inp.getAttribute('data-grade');
+        var v = parseInt(inp.value, 10);
+        evalGradeManualCounts[g] = isNaN(v) ? 0 : v;
+        renderEvalGradeTableScreen();
+      });
+    });
+    document.getElementById('evalGradeTotalInput').addEventListener('input', function(){
+      var v = parseInt(this.value, 10);
+      evalGradeManualTotal = isNaN(v) ? 0 : v;
+      renderEvalGradeTableScreen();
+    });
   }
 
   function renderEvaluationScreen(){
@@ -6833,6 +6866,8 @@
       document.getElementById('evaluationScreen').classList.remove('open');
     });
     document.getElementById('evalGradeTableBtn').addEventListener('click', function(){
+      evalGradeManualCounts = {};
+      evalGradeManualTotal = null;
       renderEvalGradeTableScreen();
       document.getElementById('evalGradeTableScreen').classList.add('open');
     });
