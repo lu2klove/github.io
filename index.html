@@ -1075,10 +1075,21 @@
   <div class="side-header">
     <button class="side-back" id="evaluationBackBtn" type="button">‹ 뒤로</button>
     <span class="side-title">📋 개인인사평가</span>
-    <span style="width:44px;"></span>
+    <button class="side-back" id="evalGradeTableBtn" type="button" aria-label="인사평가등급표">🧮</button>
   </div>
   <div class="side-scroll-wrap">
     <div class="side-body" id="evaluationBody"></div>
+  </div>
+</div>
+
+<div class="side-screen" id="evalGradeTableScreen">
+  <div class="side-header">
+    <button class="side-back" id="evalGradeTableBackBtn" type="button">‹ 뒤로</button>
+    <span class="side-title">🧮 인사평가등급표</span>
+    <span style="width:44px;"></span>
+  </div>
+  <div class="side-scroll-wrap">
+    <div class="side-body" id="evalGradeTableBody"></div>
   </div>
 </div>
 
@@ -4129,6 +4140,30 @@
     renderEvaluationScreen();
   }
   var evalYearFilter = 'all';
+  function renderEvalGradeTableScreen(){
+    var body = document.getElementById('evalGradeTableBody');
+    var filteredEvals = evalYearFilter === 'all' ? evaluations : evaluations.filter(function(e){ return e.year === evalYearFilter; });
+    var totalEvals = filteredEvals.length;
+    var gradeCounts = { 'E+':0, 'E':0, 'M+':0, 'M':0, 'I':0 };
+    filteredEvals.forEach(function(ev){
+      var g = computeEvalGrade(ev.finalScore, ev.excluded);
+      if(gradeCounts[g.grade] != null) gradeCounts[g.grade]++;
+    });
+    var gradeOrder = ['E+','E','M+','M','I'];
+
+    var html = '';
+    html += '<p class="savehint" style="margin-bottom:12px;">'+(evalYearFilter==='all'?'전체 연도':evalYearFilter+'년')+' 평가 기준이에요 · 평가 화면에서 연도를 바꾸면 여기도 함께 바뀌어요.</p>';
+    html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:420px;">';
+    html += '<thead><tr><th>등급</th><th># 등급%</th><th>Σ 등급별 인원수</th><th># 전체인원</th></tr></thead><tbody>';
+    gradeOrder.forEach(function(g){
+      var count = gradeCounts[g] || 0;
+      var pct = totalEvals > 0 ? Math.round(count / totalEvals * 100) : 0;
+      html += '<tr><td>'+g+'</td><td>'+pct+'%</td><td>'+count+'</td><td>'+totalEvals+'</td></tr>';
+    });
+    html += '</tbody></table></div>';
+    body.innerHTML = html;
+  }
+
   function renderEvaluationScreen(){
     var body = document.getElementById('evaluationBody');
     var html = '';
@@ -6796,6 +6831,13 @@
     });
     document.getElementById('evaluationBackBtn').addEventListener('click', function(){
       document.getElementById('evaluationScreen').classList.remove('open');
+    });
+    document.getElementById('evalGradeTableBtn').addEventListener('click', function(){
+      renderEvalGradeTableScreen();
+      document.getElementById('evalGradeTableScreen').classList.add('open');
+    });
+    document.getElementById('evalGradeTableBackBtn').addEventListener('click', function(){
+      document.getElementById('evalGradeTableScreen').classList.remove('open');
     });
     document.getElementById('evaluationFormCloseBtn').addEventListener('click', function(){ closeSheet('evaluationFormSheet'); });
     document.getElementById('yearPrevBtn').addEventListener('click', function(){
