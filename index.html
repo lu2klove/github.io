@@ -2636,9 +2636,22 @@
   }
 
   // 전체 재직자(퇴사자는 잔액이 자동 소멸되므로 제외) 기준 잔액 목록.
+  // 오늘 날짜 기준으로 "병가" 근태기록이 걸려있는 직원인지 확인해요.
+  function isOnSickLeaveToday(employeeId){
+    var today = todayStr();
+    return entries.some(function(x){
+      return x.type === 'attendance' && x.employeeId === employeeId && x.date === today && stripEmojiForCompare(x.workType) === '병가';
+    });
+  }
+
   function computeAllTeamDinnerBalances(){
     var events = getTeamDinnerEvents();
-    return employees.filter(function(e){ return !e.resignDate; }).map(function(e){
+    return employees.filter(function(e){
+      if(e.resignDate) return false;
+      if(e.leaveDate && !e.returnDate) return false; // 휴직 중
+      if(isOnSickLeaveToday(e.id)) return false; // 병가 중
+      return true;
+    }).map(function(e){
       var accrued = computeEmployeeDinnerAccrual(e, teamDinnerSettings);
       var used = computeEmployeeDinnerUsed(e.id, events);
       return { employee: e, accrued: accrued, used: used, balance: accrued - used };
@@ -3039,6 +3052,14 @@
     });
   }
 
+  var TEAM_DINNER_EXPENSE_CATEGORIES = ['도란(EX)', '도란(OTI)'];
+  // 특정 날짜에 등록된 "도란(EX)"/"도란(OTI)" 경비 기록 금액 합계.
+  function computeDoranExpenseAmount(dateStr){
+    return entries
+      .filter(function(x){ return x.type === 'expense' && x.date === dateStr && TEAM_DINNER_EXPENSE_CATEGORIES.indexOf(x.category) > -1; })
+      .reduce(function(sum, x){ return sum + (x.amount || 0); }, 0);
+  }
+
   function openTeamDinnerForm(existing){
     editingTeamDinnerEventId = existing ? existing.id : null;
     currentTeamDinnerParticipants = existing ? (existing.participants||[]).slice() : [];
@@ -3046,11 +3067,15 @@
     document.getElementById('teamDinnerFormTitle').textContent = existing ? '🍻 회식 기록 수정' : '🍻 회식 기록 추가';
 
     var activeEmployees = employees.filter(function(x){ return !x.resignDate; });
+    var initialDate = e.date || todayStr();
+    var autoAmount = computeDoranExpenseAmount(initialDate);
+    var initialAmount = existing ? e.totalAmount : autoAmount;
 
     var html = '';
-    html += '<div class="field"><span class="field-label">날짜</span><input type="date" id="dinner_date" value="'+(e.date||todayStr())+'"></div>';
+    html += '<div class="field"><span class="field-label">날짜</span><input type="date" id="dinner_date" value="'+initialDate+'"></div>';
     html += '<div class="field"><span class="field-label">장소</span><input type="text" id="dinner_location" placeholder="예: 회사 근처 삼겹살집" value="'+escapeHtml(e.location||'')+'"></div>';
-    html += '<div class="field"><span class="field-label">총 사용액</span><input type="number" id="dinner_amount" placeholder="예: 200000" value="'+(e.totalAmount!=null?e.totalAmount:'')+'"></div>';
+    html += '<div class="field"><span class="field-label">총 사용액</span><input type="number" id="dinner_amount" placeholder="예: 200000" value="'+(initialAmount!=null?initialAmount:'')+'"></div>';
+    html += '<p class="savehint" id="dinner_amountHint" style="margin-top:-8px;"></p>';
     html += '<div class="field"><span class="field-label">참여자 (참여자 수로 균등 분담돼요)</span>';
     html += '<div id="dinner_participantList" style="display:flex;flex-wrap:wrap;gap:6px;">';
     activeEmployees.forEach(function(emp){
@@ -3067,6 +3092,21 @@
 
     document.getElementById('teamDinnerFormBody').innerHTML = html;
     openSheet('teamDinnerFormSheet');
+
+    function updateAmountHint(auto){
+      var hintEl = document.getElementById('dinner_amountHint');
+      hintEl.textContent = auto > 0
+        ? ('💡 이 날짜의 도란(EX)/도란(OTI) 경비 '+formatWon(auto)+'원을 자동으로 불러왔어요. 필요하면 직접 수정할 수 있어요.')
+        : '이 날짜에 등록된 도란(EX)/도란(OTI) 경비가 없어요. 직접 입력해주세요.';
+    }
+    updateAmountHint(autoAmount);
+
+    document.getElementById('dinner_date').addEventListener('change', function(){
+      var newAuto = computeDoranExpenseAmount(this.value);
+      document.getElementById('dinner_amount').value = newAuto || '';
+      updateAmountHint(newAuto);
+      updatePerHeadHint();
+    });
 
     function updatePerHeadHint(){
       var amt = parseFloat(document.getElementById('dinner_amount').value) || 0;
