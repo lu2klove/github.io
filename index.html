@@ -3279,7 +3279,7 @@
     if(docxLibLoadPromise) return docxLibLoadPromise;
     docxLibLoadPromise = new Promise(function(resolve, reject){
       var script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js';
+      script.src = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.min.js';
       script.onload = function(){ resolve(); };
       script.onerror = function(){ reject(new Error('문서 생성 라이브러리를 불러오지 못했어요.')); };
       document.head.appendChild(script);
