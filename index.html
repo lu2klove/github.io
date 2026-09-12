@@ -2585,14 +2585,14 @@
   var TEAM_DINNER_DEFAULT_MONTHLY = 25000;
   async function loadTeamDinnerSettings(){
     await ensureSettingsCacheLoaded();
-    var fallback = { monthlyAmount: TEAM_DINNER_DEFAULT_MONTHLY, startMonth: todayStr().slice(0,7) };
+    var fallback = { monthlyAmount: TEAM_DINNER_DEFAULT_MONTHLY, startMonth: todayStr().slice(0,7), fiscalStartMonth: 1, fiscalEndMonth: 12 };
     return Object.assign(fallback, settingsCache.teamDinnerSettings || {});
   }
   async function saveTeamDinnerSettingsToCache(){
     settingsCache.teamDinnerSettings = teamDinnerSettings;
     await persistSettingsBlob();
   }
-  var teamDinnerSettings = { monthlyAmount: TEAM_DINNER_DEFAULT_MONTHLY, startMonth: '2026-01' };
+  var teamDinnerSettings = { monthlyAmount: TEAM_DINNER_DEFAULT_MONTHLY, startMonth: '2026-01', fiscalStartMonth: 1, fiscalEndMonth: 12 };
   var teamDinnerTab = 'balance'; // 'balance' | 'events'
   var teamDinnerBalancePage = 1;
   var teamDinnerEventsPage = 1;
@@ -2610,14 +2610,80 @@
 
   // 직원 한 명의 누적 회식비 적립액. 입사월과 "적립 시작월" 중 늦은 쪽부터,
   // 퇴사월(없으면 이번 달)까지 매월 monthlyAmount씩 쌓여요(한도 없이 계속 누적).
+  // 회식비는 "연 단위"로 지급돼요 — 즉 올해 몫은 지금이 몇 월이든 상관없이
+  // (시작월 ~ 12월)까지 전부 한 번에 잡혀요. 퇴사한 해만 퇴사월까지로 잘려요.
+  // 회계연도(적립 주기) 길이(개월). 시작월~종료월을 한 바퀴로 봐요.
+  // 예: 시작1·종료12 → 12개월(달력연도). 시작4·종료3 → 12개월(4월~다음해3월).
+  // 시작1·종료11 → 11개월(12월은 어느 주기에도 안 속해서 적립 안 됨).
+  function fiscalCycleLength(settings){
+    var start = settings.fiscalStartMonth || 1, end = settings.fiscalEndMonth || 12;
+    return ((end - start + 12) % 12) + 1;
+  }
+  // 특정 연/월이 회계주기 안에 속하는지, 속한다면 그 주기가 "시작된 연도"가 언제인지 알려줘요.
+  // 주기 밖(예: 위 예시의 12월)이면 null.
+  function fiscalCycleInfoForMonth(year, month, settings){
+    var start = settings.fiscalStartMonth || 1;
+    var cycleLen = fiscalCycleLength(settings);
+    var offset = month - start;
+    if(offset < 0) offset += 12;
+    if(offset >= cycleLen) return null;
+    var cycleStartYear = (month >= start) ? year : year - 1;
+    return { cycleStartYear: cycleStartYear, offsetInCycle: offset };
+  }
+  // cycleStartYear에 시작하는 회계주기의 [시작월, 종료월]을 'YYYY-MM' 문자열로 반환해요.
+  function fiscalCycleRange(cycleStartYear, settings){
+    var start = settings.fiscalStartMonth || 1;
+    var cycleLen = fiscalCycleLength(settings);
+    var startYM = cycleStartYear + '-' + pad2(start);
+    var endMonthIdx = (start - 1) + (cycleLen - 1);
+    var endYear = cycleStartYear + Math.floor(endMonthIdx / 12);
+    var endMonth = (endMonthIdx % 12) + 1;
+    return { start: startYM, end: endYear + '-' + pad2(endMonth) };
+  }
+
+  // 회식비는 "연 단위"로 지급돼요 — 재직 중인 올해(정확히는 현재 진행 중인 회계주기) 몫은
+  // 지금이 그 주기 안 몇 번째 달이든 상관없이, 주기가 끝나는 달까지 전부 한 번에 잡혀요.
+  // 시작월~종료월로 설정한 회계주기가 달력연도(1~12월)가 아니어도, 12개월보다 짧아도 지원돼요.
   function computeEmployeeDinnerAccrual(emp, settings){
     if(!emp.hireDate) return 0;
     var hireMonth = emp.hireDate.slice(0,7);
-    var startMonth = hireMonth > settings.startMonth ? hireMonth : settings.startMonth;
-    var endMonth = emp.resignDate ? emp.resignDate.slice(0,7) : todayStr().slice(0,7);
-    var months = monthsBetweenInclusive(startMonth, endMonth);
-    return months * settings.monthlyAmount;
+    var effectiveStart = hireMonth > settings.startMonth ? hireMonth : settings.startMonth;
+
+    var effectiveEnd;
+    if(emp.resignDate){
+      effectiveEnd = emp.resignDate.slice(0,7);
+    }else{
+      var todayY = parseInt(todayStr().slice(0,4),10);
+      var todayM = parseInt(todayStr().slice(5,7),10);
+      var info = fiscalCycleInfoForMonth(todayY, todayM, settings);
+      if(info){
+        effectiveEnd = fiscalCycleRange(info.cycleStartYear, settings).end;
+      }else{
+        // 지금이 "쉬는 달"(어느 주기에도 안 속함)이면, 가장 최근에 끝난 주기까지만 인정해요.
+        var y = todayY, m = todayM, found = null;
+        for(var i=0;i<13;i++){
+          m -= 1;
+          if(m < 1){ m = 12; y -= 1; }
+          var inf2 = fiscalCycleInfoForMonth(y, m, settings);
+          if(inf2){ found = fiscalCycleRange(inf2.cycleStartYear, settings); break; }
+        }
+        effectiveEnd = found ? found.end : effectiveStart;
+      }
+    }
+
+    if(effectiveEnd < effectiveStart) return 0;
+    var sy = parseInt(effectiveStart.slice(0,4),10), sm = parseInt(effectiveStart.slice(5,7),10);
+    var ey = parseInt(effectiveEnd.slice(0,4),10), em = parseInt(effectiveEnd.slice(5,7),10);
+    var count = 0, y2 = sy, m2 = sm, guard = 0;
+    while((y2 < ey || (y2 === ey && m2 <= em)) && guard < 1200){
+      guard++;
+      if(fiscalCycleInfoForMonth(y2, m2, settings)) count++;
+      m2++;
+      if(m2 > 12){ m2 = 1; y2++; }
+    }
+    return count * settings.monthlyAmount;
   }
+
 
   // 직원 한 명이 지금까지 참여한 회식들에서, 매번 (총액 ÷ 참여인원)만큼
   // 자기 몫으로 사용한 금액의 합.
@@ -2921,7 +2987,7 @@
     var totalBalance = totalAccrued - totalUsed;
 
     var html = '';
-    html += '<p class="savehint" style="margin-bottom:10px;">직원 1인당 매월 '+formatWon(teamDinnerSettings.monthlyAmount)+'원이 자동으로 적립돼요('+teamDinnerSettings.startMonth+'월부터, 한도 없이 계속 누적). 회식 때 참여자를 고르면 총액을 인원수로 나눠 각자 사용액에 반영돼요.</p>';
+    html += '<p class="savehint" style="margin-bottom:10px;">직원 1인당 매월 '+formatWon(teamDinnerSettings.monthlyAmount)+'원씩, '+teamDinnerSettings.fiscalStartMonth+'월~'+teamDinnerSettings.fiscalEndMonth+'월을 한 주기로 지급돼요('+teamDinnerSettings.startMonth+'월부터 추적 시작, 진행 중인 주기 몫은 지금이 몇 월이든 주기 마지막 달까지 한 번에 반영돼요). 안 쓴 만큼은 한도 없이 계속 이월돼요. 회식 때 참여자를 고르면 총액을 인원수로 나눠 각자 사용액에 반영돼요.</p>';
 
     html += '<div style="display:flex;gap:8px;margin-bottom:16px;">';
     html += '<div class="rule-card" style="flex:1;text-align:center;"><p style="font-size:11px;color:var(--ink-faint);">누적 적립</p><p style="font-size:16px;font-weight:700;">'+formatWon(totalAccrued)+'원</p></div>';
@@ -3072,7 +3138,12 @@
     var e = existing || {};
     document.getElementById('teamDinnerFormTitle').textContent = existing ? '🍻 회식 기록 수정' : '🍻 회식 기록 추가';
 
-    var activeEmployees = employees.filter(function(x){ return !x.resignDate; });
+    var activeEmployees = employees.filter(function(x){
+      if(x.resignDate) return false;
+      if(x.leaveDate && !x.returnDate) return false; // 휴직 중
+      if(isOnSickLeaveToday(x.id)) return false; // 병가 중
+      return true;
+    });
     var initialDate = e.date || todayStr();
     var autoAmount = computeDoranExpenseAmount(initialDate);
     var initialAmount = existing ? e.totalAmount : autoAmount;
@@ -3237,17 +3308,28 @@
   }
 
   function renderTeamDinnerSettingsSheet(){
+    var monthOptions = function(selected){
+      var h = '';
+      for(var i=1;i<=12;i++){ h += '<option value="'+i+'"'+(selected===i?' selected':'')+'>'+i+'월</option>'; }
+      return h;
+    };
     var html = '';
     html += '<div class="field"><span class="field-label">1인당 월 지급액</span><input type="number" id="dinnerSet_monthly" value="'+teamDinnerSettings.monthlyAmount+'"></div>';
-    html += '<div class="field"><span class="field-label">적립 시작월</span><input type="month" id="dinnerSet_startMonth" value="'+teamDinnerSettings.startMonth+'"></div>';
-    html += '<p class="savehint">이 달 이전 기간은 적립 계산에 포함하지 않아요.</p>';
+    html += '<div class="field"><span class="field-label">적립 시작월 (이 시스템으로 언제부터 추적할지)</span><input type="month" id="dinnerSet_startMonth" value="'+teamDinnerSettings.startMonth+'"></div>';
+    html += '<div class="row2">';
+    html += '<div class="field"><span class="field-label">연간 시작월</span><select id="dinnerSet_fiscalStart">'+monthOptions(teamDinnerSettings.fiscalStartMonth)+'</select></div>';
+    html += '<div class="field"><span class="field-label">연간 종료월</span><select id="dinnerSet_fiscalEnd">'+monthOptions(teamDinnerSettings.fiscalEndMonth)+'</select></div>';
+    html += '</div>';
+    html += '<p class="savehint">한 회계주기가 시작월~종료월이에요(예: 4월~다음해 3월도 가능). 이 기간이 끝나기 전까지는, 지금이 몇 월이든 그 주기 몫 전체가 한 번에 반영돼요. 종료월이 시작월보다 빠르면 12개월 전체보다 짧은 주기(사용 못 하는 달이 생김)로 설정돼요.</p>';
     html += '<button class="savebtn" id="dinnerSet_saveBtn" type="button" style="width:100%;margin-top:14px;">저장</button>';
     document.getElementById('teamDinnerSettingsBody').innerHTML = html;
     document.getElementById('dinnerSet_saveBtn').addEventListener('click', async function(){
       var monthly = parseFloat(document.getElementById('dinnerSet_monthly').value);
       var startMonth = document.getElementById('dinnerSet_startMonth').value;
+      var fiscalStart = parseInt(document.getElementById('dinnerSet_fiscalStart').value, 10);
+      var fiscalEnd = parseInt(document.getElementById('dinnerSet_fiscalEnd').value, 10);
       if(isNaN(monthly) || monthly < 0 || !startMonth) return;
-      teamDinnerSettings = { monthlyAmount: monthly, startMonth: startMonth };
+      teamDinnerSettings = { monthlyAmount: monthly, startMonth: startMonth, fiscalStartMonth: fiscalStart, fiscalEndMonth: fiscalEnd };
       await saveTeamDinnerSettingsToCache();
       closeSheet('teamDinnerSettingsSheet');
       renderTeamDinnerScreen();
