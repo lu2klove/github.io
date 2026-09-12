@@ -3054,11 +3054,15 @@
 
   var TEAM_DINNER_EXPENSE_CATEGORIES = ['도란(EX)', '도란(OTI)'];
   // 특정 날짜에 등록된 "도란(EX)"/"도란(OTI)" 경비 기록 금액 합계.
-  // 카테고리 이름 앞에 이모지를 붙여 등록한 경우("🍻도란(EX)")도 정확히 인식하도록,
-  // 이모지를 떼어내고 비교해요.
+  // 이 값은 경비 등록 화면의 "카테고리" 또는 "경비유형" 중 어느 쪽에 입력됐어도
+  // 잡히도록 둘 다 확인하고, 이모지가 붙어 등록된 경우도 인식하도록 이모지를 떼고 비교해요.
   function computeDoranExpenseAmount(dateStr){
     return entries
-      .filter(function(x){ return x.type === 'expense' && x.date === dateStr && TEAM_DINNER_EXPENSE_CATEGORIES.indexOf(stripEmojiForCompare(x.category)) > -1; })
+      .filter(function(x){
+        if(x.type !== 'expense' || x.date !== dateStr) return false;
+        return TEAM_DINNER_EXPENSE_CATEGORIES.indexOf(stripEmojiForCompare(x.category)) > -1
+          || TEAM_DINNER_EXPENSE_CATEGORIES.indexOf(stripEmojiForCompare(x.expenseType)) > -1;
+      })
       .reduce(function(sum, x){ return sum + (x.amount || 0); }, 0);
   }
 
