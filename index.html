@@ -1032,6 +1032,7 @@
     <button class="side-back" id="hrBackBtn" type="button">‹ 뒤로</button>
     <span class="side-title">🧑‍💼 인사관리</span>
     <div style="display:flex;gap:6px;">
+      <button class="side-back" id="teamDinnerBtn" type="button" aria-label="회식관리">🍻</button>
       <button class="side-back" id="hrSettingsBtn" type="button" aria-label="직원 관리">⚙️</button>
       <button class="side-back" id="hrEvalBtn" type="button" aria-label="인사평가">📋</button>
     </div>
@@ -1069,6 +1070,41 @@
     <button class="sheet-close" id="employeeFormCloseBtn" type="button">✕</button>
   </div>
   <div id="employeeFormBody"></div>
+</div>
+
+<div class="side-screen" id="teamDinnerScreen">
+  <div class="side-header">
+    <button class="side-back" id="teamDinnerBackBtn" type="button">‹ 뒤로</button>
+    <span class="side-title">🍻 회식관리 (도란도란)</span>
+    <button class="side-back" id="teamDinnerSettingsBtn" type="button" aria-label="회식비 설정">⚙️</button>
+  </div>
+  <div class="side-scroll-wrap">
+    <div class="side-body" id="teamDinnerBody"></div>
+  </div>
+</div>
+
+<div class="bottom-sheet" id="teamDinnerFormSheet">
+  <div class="sheet-head">
+    <span class="sheet-title" id="teamDinnerFormTitle">🍻 회식 기록</span>
+    <button class="sheet-close" id="teamDinnerFormCloseBtn" type="button">✕</button>
+  </div>
+  <div id="teamDinnerFormBody"></div>
+</div>
+
+<div class="bottom-sheet" id="teamDinnerSettingsSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">⚙️ 회식비 설정</span>
+    <button class="sheet-close" id="teamDinnerSettingsCloseBtn" type="button">✕</button>
+  </div>
+  <div id="teamDinnerSettingsBody"></div>
+</div>
+
+<div class="bottom-sheet" id="teamDinnerDraftSheet">
+  <div class="sheet-head">
+    <span class="sheet-title">📝 기안 미리보기</span>
+    <button class="sheet-close" id="teamDinnerDraftCloseBtn" type="button">✕</button>
+  </div>
+  <div id="teamDinnerDraftBody"></div>
 </div>
 
 <div class="side-screen" id="evaluationScreen">
@@ -2546,6 +2582,70 @@
   var employeeProjects = [];
   var employeeJobs = DEFAULT_EMPLOYEE_JOBS.slice();
   var employeeWorkLocations = [];
+  var TEAM_DINNER_DEFAULT_MONTHLY = 25000;
+  async function loadTeamDinnerSettings(){
+    await ensureSettingsCacheLoaded();
+    var fallback = { monthlyAmount: TEAM_DINNER_DEFAULT_MONTHLY, startMonth: todayStr().slice(0,7) };
+    return Object.assign(fallback, settingsCache.teamDinnerSettings || {});
+  }
+  async function saveTeamDinnerSettingsToCache(){
+    settingsCache.teamDinnerSettings = teamDinnerSettings;
+    await persistSettingsBlob();
+  }
+  var teamDinnerSettings = { monthlyAmount: TEAM_DINNER_DEFAULT_MONTHLY, startMonth: '2026-01' };
+  var teamDinnerTab = 'balance'; // 'balance' | 'events'
+  var teamDinnerBalancePage = 1;
+  var teamDinnerEventsPage = 1;
+  var editingTeamDinnerEventId = null;
+  var currentTeamDinnerParticipants = [];
+
+  // 'YYYY-MM' 두 값 사이의 개월수(양끝 포함). end가 start보다 이르면 0.
+  function monthsBetweenInclusive(startMonth, endMonth){
+    if(!startMonth || !endMonth) return 0;
+    var sy = parseInt(startMonth.slice(0,4),10), sm = parseInt(startMonth.slice(5,7),10);
+    var ey = parseInt(endMonth.slice(0,4),10), em = parseInt(endMonth.slice(5,7),10);
+    var diff = (ey - sy) * 12 + (em - sm) + 1;
+    return Math.max(0, diff);
+  }
+
+  // 직원 한 명의 누적 회식비 적립액. 입사월과 "적립 시작월" 중 늦은 쪽부터,
+  // 퇴사월(없으면 이번 달)까지 매월 monthlyAmount씩 쌓여요(한도 없이 계속 누적).
+  function computeEmployeeDinnerAccrual(emp, settings){
+    if(!emp.hireDate) return 0;
+    var hireMonth = emp.hireDate.slice(0,7);
+    var startMonth = hireMonth > settings.startMonth ? hireMonth : settings.startMonth;
+    var endMonth = emp.resignDate ? emp.resignDate.slice(0,7) : todayStr().slice(0,7);
+    var months = monthsBetweenInclusive(startMonth, endMonth);
+    return months * settings.monthlyAmount;
+  }
+
+  // 직원 한 명이 지금까지 참여한 회식들에서, 매번 (총액 ÷ 참여인원)만큼
+  // 자기 몫으로 사용한 금액의 합.
+  function computeEmployeeDinnerUsed(employeeId, events){
+    var used = 0;
+    events.forEach(function(ev){
+      if(ev.participants && ev.participants.indexOf(employeeId) > -1 && ev.participants.length > 0){
+        used += (ev.totalAmount || 0) / ev.participants.length;
+      }
+    });
+    return used;
+  }
+
+  function getTeamDinnerEvents(){
+    return entries.filter(function(e){ return e.type === 'teamdinner'; });
+  }
+
+  // 전체 재직자(퇴사자는 잔액이 자동 소멸되므로 제외) 기준 잔액 목록.
+  function computeAllTeamDinnerBalances(){
+    var events = getTeamDinnerEvents();
+    return employees.filter(function(e){ return !e.resignDate; }).map(function(e){
+      var accrued = computeEmployeeDinnerAccrual(e, teamDinnerSettings);
+      var used = computeEmployeeDinnerUsed(e.id, events);
+      return { employee: e, accrued: accrued, used: used, balance: accrued - used };
+    });
+  }
+
+
   async function loadEmployeeOptions(){
     await ensureSettingsCacheLoaded();
     var fallback = { companies:[], departments:[], projects:[], jobs:DEFAULT_EMPLOYEE_JOBS.slice(), workLocations:[], attendanceTypes:DEFAULT_ATTENDANCE_TYPES.slice() };
@@ -2795,6 +2895,346 @@
       turnoverPct: total > 0 ? (resigned.length/total*100) : 0
     };
   }
+
+  var TEAM_DINNER_PAGE_SIZE = 10;
+
+  function renderTeamDinnerScreen(){
+    var body = document.getElementById('teamDinnerBody');
+    var balances = computeAllTeamDinnerBalances();
+    var events = getTeamDinnerEvents().slice().sort(function(a,b){ return b.date < a.date ? -1 : 1; });
+
+    var totalAccrued = balances.reduce(function(s,b){ return s + b.accrued; }, 0);
+    var totalUsed = balances.reduce(function(s,b){ return s + b.used; }, 0);
+    var totalBalance = totalAccrued - totalUsed;
+
+    var html = '';
+    html += '<p class="savehint" style="margin-bottom:10px;">직원 1인당 매월 '+formatWon(teamDinnerSettings.monthlyAmount)+'원이 자동으로 적립돼요('+teamDinnerSettings.startMonth+'월부터, 한도 없이 계속 누적). 회식 때 참여자를 고르면 총액을 인원수로 나눠 각자 사용액에 반영돼요.</p>';
+
+    html += '<div style="display:flex;gap:8px;margin-bottom:16px;">';
+    html += '<div class="rule-card" style="flex:1;text-align:center;"><p style="font-size:11px;color:var(--ink-faint);">누적 적립</p><p style="font-size:16px;font-weight:700;">'+formatWon(totalAccrued)+'원</p></div>';
+    html += '<div class="rule-card" style="flex:1;text-align:center;"><p style="font-size:11px;color:var(--ink-faint);">사용액</p><p style="font-size:16px;font-weight:700;">'+formatWon(totalUsed)+'원</p></div>';
+    html += '<div class="rule-card" style="flex:1;text-align:center;"><p style="font-size:11px;color:var(--ink-faint);">잔액</p><p style="font-size:16px;font-weight:700;color:'+(totalBalance<0?'var(--brick)':'var(--pine)')+';">'+formatWon(totalBalance)+'원</p></div>';
+    html += '</div>';
+
+    html += '<div class="chiprow" id="teamDinnerTabChips" style="margin-bottom:14px;">';
+    html += '<button class="chip'+(teamDinnerTab==='balance'?' selected':'')+'" data-tab="balance" type="button">💰 직원별 잔액</button>';
+    html += '<button class="chip'+(teamDinnerTab==='events'?' selected':'')+'" data-tab="events" type="button">🍻 회식 기록</button>';
+    html += '</div>';
+
+    if(teamDinnerTab === 'balance'){
+      if(balances.length === 0){
+        html += '<p class="empty-inline">재직 중인 직원이 없어요.</p>';
+      }else{
+        var totalPagesB = Math.ceil(balances.length / TEAM_DINNER_PAGE_SIZE);
+        if(teamDinnerBalancePage > totalPagesB) teamDinnerBalancePage = totalPagesB || 1;
+        if(teamDinnerBalancePage < 1) teamDinnerBalancePage = 1;
+        var startB = (teamDinnerBalancePage-1) * TEAM_DINNER_PAGE_SIZE;
+        var sortedBalances = balances.slice().sort(function(a,b){ return (a.employee.name||'').localeCompare(b.employee.name||'','ko'); });
+        var pageBalances = sortedBalances.slice(startB, startB + TEAM_DINNER_PAGE_SIZE);
+
+        html += '<div style="overflow-x:auto;"><table class="status-table" style="width:100%;min-width:360px;">';
+        html += '<thead><tr><th>직원</th><th>적립</th><th>사용</th><th>잔액</th></tr></thead><tbody>';
+        pageBalances.forEach(function(b){
+          html += '<tr><td>'+escapeHtml(b.employee.name)+'</td><td>'+formatWon(b.accrued)+'</td><td>'+formatWon(b.used)+'</td><td style="'+(b.balance<0?'color:var(--brick);font-weight:700;':'')+'">'+formatWon(b.balance)+'</td></tr>';
+        });
+        html += '</tbody></table></div>';
+
+        if(totalPagesB > 1){
+          html += renderTeamDinnerPager(teamDinnerBalancePage, totalPagesB, 'balance');
+        }
+      }
+    }else{
+      html += '<button class="savebtn" id="teamDinnerAddEventBtn" type="button" style="width:100%;margin-bottom:12px;">+ 회식 기록 추가</button>';
+      if(events.length === 0){
+        html += '<p class="empty-inline">등록된 회식 기록이 없어요.</p>';
+      }else{
+        var totalPagesE = Math.ceil(events.length / TEAM_DINNER_PAGE_SIZE);
+        if(teamDinnerEventsPage > totalPagesE) teamDinnerEventsPage = totalPagesE || 1;
+        if(teamDinnerEventsPage < 1) teamDinnerEventsPage = 1;
+        var startE = (teamDinnerEventsPage-1) * TEAM_DINNER_PAGE_SIZE;
+        var pageEvents = events.slice(startE, startE + TEAM_DINNER_PAGE_SIZE);
+
+        pageEvents.forEach(function(ev){
+          var perHead = ev.participants && ev.participants.length > 0 ? Math.round((ev.totalAmount||0) / ev.participants.length) : 0;
+          var names = (ev.participants||[]).map(function(pid){
+            var emp = employees.find(function(x){ return x.id === pid; });
+            return emp ? emp.name : '(삭제된 직원)';
+          }).join(', ');
+          html += '<div class="record-item">';
+          html += '<div class="record-top"><span class="record-badge" style="background:var(--amber-soft);color:var(--amber);">🍻 '+escapeHtml(ev.location||'회식')+'</span><span style="font-size:12px;color:var(--ink-faint);">'+escapeHtml(niceDate ? niceDate(ev.date) : ev.date)+'</span></div>';
+          html += '<p class="record-sub">참여 '+ev.participants.length+'명('+escapeHtml(names)+') · 총 '+formatWon(ev.totalAmount)+'원 · 1인당 '+formatWon(perHead)+'원</p>';
+          if(ev.memo) html += '<p class="record-sub">'+escapeHtml(ev.memo)+'</p>';
+          html += '<div class="record-actions">';
+          html += '<button class="cancelbtn" data-dinner-draft="'+ev.id+'" type="button" style="padding:6px 12px;font-size:12.5px;">📝 기안</button>';
+          html += '<button class="cancelbtn" data-dinner-edit="'+ev.id+'" type="button" style="padding:6px 12px;font-size:12.5px;">수정</button>';
+          html += '<button class="danger" data-dinner-del="'+ev.id+'" type="button" style="padding:6px 12px;font-size:12.5px;">삭제</button>';
+          html += '</div></div>';
+        });
+
+        if(totalPagesE > 1){
+          html += renderTeamDinnerPager(teamDinnerEventsPage, totalPagesE, 'events');
+        }
+      }
+    }
+
+    body.innerHTML = html;
+    wireTeamDinnerEvents();
+  }
+
+  function renderTeamDinnerPager(current, total, kind){
+    var groupStart = getPageGroupStart(current);
+    var groupEnd = Math.min(groupStart+4, total);
+    var h = '<div class="pager" style="margin-top:10px;">';
+    if(groupStart > 1) h += '<button class="pagebtn pagegroup" data-dinner-page-goto="'+kind+':'+(groupStart-1)+'" type="button">‹</button>';
+    for(var p=groupStart; p<=groupEnd; p++){
+      h += '<button class="pagebtn'+(p===current?' active':'')+'" data-dinner-page="'+kind+':'+p+'" type="button">'+p+'</button>';
+    }
+    if(groupEnd < total) h += '<button class="pagebtn pagegroup" data-dinner-page-goto="'+kind+':'+(groupEnd+1)+'" type="button">›</button>';
+    h += '</div>';
+    return h;
+  }
+
+  function wireTeamDinnerEvents(){
+    document.querySelectorAll('#teamDinnerTabChips .chip').forEach(function(c){
+      c.addEventListener('click', function(){
+        teamDinnerTab = c.getAttribute('data-tab');
+        renderTeamDinnerScreen();
+      });
+    });
+    var addBtn = document.getElementById('teamDinnerAddEventBtn');
+    if(addBtn) addBtn.addEventListener('click', function(){ openTeamDinnerForm(null); });
+    document.querySelectorAll('[data-dinner-edit]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var ev = getTeamDinnerEvents().find(function(x){ return x.id === btn.getAttribute('data-dinner-edit'); });
+        if(ev) openTeamDinnerForm(ev);
+      });
+    });
+    document.querySelectorAll('[data-dinner-del]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        var id = btn.getAttribute('data-dinner-del');
+        entries = entries.filter(function(x){ return x.id !== id; });
+        await saveEntries();
+        renderTeamDinnerScreen();
+      });
+    });
+    document.querySelectorAll('[data-dinner-draft]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var ev = getTeamDinnerEvents().find(function(x){ return x.id === btn.getAttribute('data-dinner-draft'); });
+        if(ev) openTeamDinnerDraft(ev);
+      });
+    });
+    document.querySelectorAll('[data-dinner-page]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var parts = btn.getAttribute('data-dinner-page').split(':');
+        if(parts[0]==='balance') teamDinnerBalancePage = parseInt(parts[1],10); else teamDinnerEventsPage = parseInt(parts[1],10);
+        renderTeamDinnerScreen();
+      });
+    });
+    document.querySelectorAll('[data-dinner-page-goto]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var parts = btn.getAttribute('data-dinner-page-goto').split(':');
+        if(parts[0]==='balance') teamDinnerBalancePage = parseInt(parts[1],10); else teamDinnerEventsPage = parseInt(parts[1],10);
+        renderTeamDinnerScreen();
+      });
+    });
+  }
+
+  function openTeamDinnerForm(existing){
+    editingTeamDinnerEventId = existing ? existing.id : null;
+    currentTeamDinnerParticipants = existing ? (existing.participants||[]).slice() : [];
+    var e = existing || {};
+    document.getElementById('teamDinnerFormTitle').textContent = existing ? '🍻 회식 기록 수정' : '🍻 회식 기록 추가';
+
+    var activeEmployees = employees.filter(function(x){ return !x.resignDate; });
+
+    var html = '';
+    html += '<div class="field"><span class="field-label">날짜</span><input type="date" id="dinner_date" value="'+(e.date||todayStr())+'"></div>';
+    html += '<div class="field"><span class="field-label">장소</span><input type="text" id="dinner_location" placeholder="예: 회사 근처 삼겹살집" value="'+escapeHtml(e.location||'')+'"></div>';
+    html += '<div class="field"><span class="field-label">총 사용액</span><input type="number" id="dinner_amount" placeholder="예: 200000" value="'+(e.totalAmount!=null?e.totalAmount:'')+'"></div>';
+    html += '<div class="field"><span class="field-label">참여자 (참여자 수로 균등 분담돼요)</span>';
+    html += '<div id="dinner_participantList" style="display:flex;flex-wrap:wrap;gap:6px;">';
+    activeEmployees.forEach(function(emp){
+      var selected = currentTeamDinnerParticipants.indexOf(emp.id) > -1;
+      html += '<button type="button" class="chip'+(selected?' selected':'')+'" data-emp-id="'+emp.id+'">'+escapeHtml(emp.name)+'</button>';
+    });
+    html += '</div></div>';
+    html += '<p class="savehint" id="dinner_perHeadHint" style="margin-top:6px;"></p>';
+    html += '<div class="field"><span class="field-label">메모</span><input type="text" id="dinner_memo" placeholder="선택 입력" value="'+escapeHtml(e.memo||'')+'"></div>';
+    html += '<div class="row2" style="margin-top:14px;"><button class="cancelbtn" id="dinner_cancelBtn" type="button">취소</button><button class="savebtn" id="dinner_confirmBtn" type="button">'+(existing?'수정완료':'등록')+'</button></div>';
+    if(existing){
+      html += '<button class="danger" id="dinner_deleteBtn" type="button" style="width:100%;margin-top:8px;">이 기록 삭제</button>';
+    }
+
+    document.getElementById('teamDinnerFormBody').innerHTML = html;
+    openSheet('teamDinnerFormSheet');
+
+    function updatePerHeadHint(){
+      var amt = parseFloat(document.getElementById('dinner_amount').value) || 0;
+      var hint = document.getElementById('dinner_perHeadHint');
+      if(currentTeamDinnerParticipants.length === 0){
+        hint.textContent = '참여자를 선택해주세요.';
+      }else{
+        hint.textContent = '1인당 '+formatWon(Math.round(amt/currentTeamDinnerParticipants.length))+'원씩 분담돼요 ('+currentTeamDinnerParticipants.length+'명)';
+      }
+    }
+    updatePerHeadHint();
+
+    document.getElementById('dinner_amount').addEventListener('input', updatePerHeadHint);
+    document.querySelectorAll('#dinner_participantList .chip').forEach(function(chip){
+      chip.addEventListener('click', function(){
+        var id = chip.getAttribute('data-emp-id');
+        var idx = currentTeamDinnerParticipants.indexOf(id);
+        if(idx > -1){ currentTeamDinnerParticipants.splice(idx,1); chip.classList.remove('selected'); }
+        else{ currentTeamDinnerParticipants.push(id); chip.classList.add('selected'); }
+        updatePerHeadHint();
+      });
+    });
+
+    document.getElementById('dinner_cancelBtn').addEventListener('click', function(){ closeSheet('teamDinnerFormSheet'); });
+    if(existing){
+      document.getElementById('dinner_deleteBtn').addEventListener('click', async function(){
+        entries = entries.filter(function(x){ return x.id !== existing.id; });
+        await saveEntries();
+        closeSheet('teamDinnerFormSheet');
+        renderTeamDinnerScreen();
+      });
+    }
+    document.getElementById('dinner_confirmBtn').addEventListener('click', async function(){
+      var date = document.getElementById('dinner_date').value;
+      var amount = parseFloat(document.getElementById('dinner_amount').value);
+      if(!date){ document.getElementById('dinner_date').focus(); return; }
+      if(currentTeamDinnerParticipants.length === 0){ alert('참여자를 한 명 이상 선택해주세요.'); return; }
+      if(isNaN(amount) || amount <= 0){ document.getElementById('dinner_amount').focus(); return; }
+
+      var payload = {
+        id: editingTeamDinnerEventId || uid(),
+        type: 'teamdinner',
+        date: date,
+        location: document.getElementById('dinner_location').value.trim(),
+        totalAmount: amount,
+        participants: currentTeamDinnerParticipants.slice(),
+        memo: document.getElementById('dinner_memo').value.trim()
+      };
+      var idx = entries.findIndex(function(x){ return x.id === payload.id; });
+      if(idx >= 0) entries[idx] = payload; else entries.push(payload);
+      await saveEntries();
+      closeSheet('teamDinnerFormSheet');
+      renderTeamDinnerScreen();
+    });
+  }
+
+  var docxLibLoadPromise = null;
+  function ensureDocxLib(){
+    if(window.docx) return Promise.resolve();
+    if(docxLibLoadPromise) return docxLibLoadPromise;
+    docxLibLoadPromise = new Promise(function(resolve, reject){
+      var script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.js';
+      script.onload = function(){ resolve(); };
+      script.onerror = function(){ reject(new Error('문서 생성 라이브러리를 불러오지 못했어요.')); };
+      document.head.appendChild(script);
+    });
+    return docxLibLoadPromise;
+  }
+
+  async function downloadTeamDinnerDraftDocx(ev, names, perHead){
+    var btn = document.getElementById('dinnerDraft_downloadBtn');
+    var originalText = btn.textContent;
+    btn.textContent = '문서 만드는 중…';
+    btn.disabled = true;
+    try{
+      await ensureDocxLib();
+      var docx = window.docx;
+      var rowLabel = function(label, value){
+        return new docx.TableRow({ children:[
+          new docx.TableCell({ width:{size:2500, type:docx.WidthType.DXA}, children:[new docx.Paragraph({ children:[new docx.TextRun({text:label, bold:true})] })] }),
+          new docx.TableCell({ width:{size:6000, type:docx.WidthType.DXA}, children:[new docx.Paragraph(String(value))] })
+        ]});
+      };
+      var doc = new docx.Document({
+        sections: [{
+          children: [
+            new docx.Paragraph({ text:'회식비 집행 기안', heading: docx.HeadingLevel.HEADING1 }),
+            new docx.Paragraph({ text:' ' }),
+            new docx.Table({
+              columnWidths:[2500,6000],
+              width:{ size:8500, type:docx.WidthType.DXA },
+              rows: [
+                rowLabel('일자', niceDate(ev.date)),
+                rowLabel('장소', ev.location||'-'),
+                rowLabel('참석 인원', names.length+'명'),
+                rowLabel('참석자', names.join(', ')),
+                rowLabel('총 사용액', formatWon(ev.totalAmount)+'원'),
+                rowLabel('1인당 분담액', formatWon(perHead)+'원'),
+                rowLabel('비고', ev.memo||'-')
+              ]
+            }),
+            new docx.Paragraph({ text:' ' }),
+            new docx.Paragraph({ text:'위와 같이 회식비를 집행하였음을 보고하며, 결재를 요청드립니다.' })
+          ]
+        }]
+      });
+      var blob = await docx.Packer.toBlob(doc);
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = '회식비집행기안_'+ev.date+'.docx';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }catch(err){
+      alert(err.message || '문서 생성 중 오류가 발생했어요.');
+    }
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
+
+  function renderTeamDinnerSettingsSheet(){
+    var html = '';
+    html += '<div class="field"><span class="field-label">1인당 월 지급액</span><input type="number" id="dinnerSet_monthly" value="'+teamDinnerSettings.monthlyAmount+'"></div>';
+    html += '<div class="field"><span class="field-label">적립 시작월</span><input type="month" id="dinnerSet_startMonth" value="'+teamDinnerSettings.startMonth+'"></div>';
+    html += '<p class="savehint">이 달 이전 기간은 적립 계산에 포함하지 않아요.</p>';
+    html += '<button class="savebtn" id="dinnerSet_saveBtn" type="button" style="width:100%;margin-top:14px;">저장</button>';
+    document.getElementById('teamDinnerSettingsBody').innerHTML = html;
+    document.getElementById('dinnerSet_saveBtn').addEventListener('click', async function(){
+      var monthly = parseFloat(document.getElementById('dinnerSet_monthly').value);
+      var startMonth = document.getElementById('dinnerSet_startMonth').value;
+      if(isNaN(monthly) || monthly < 0 || !startMonth) return;
+      teamDinnerSettings = { monthlyAmount: monthly, startMonth: startMonth };
+      await saveTeamDinnerSettingsToCache();
+      closeSheet('teamDinnerSettingsSheet');
+      renderTeamDinnerScreen();
+    });
+  }
+
+  function openTeamDinnerDraft(ev){
+    var names = (ev.participants||[]).map(function(pid){
+      var emp = employees.find(function(x){ return x.id === pid; });
+      return emp ? emp.name : '(삭제된 직원)';
+    });
+    var perHead = ev.participants.length > 0 ? Math.round(ev.totalAmount / ev.participants.length) : 0;
+
+    var html = '';
+    html += '<div class="rule-card">';
+    html += '<p style="font-weight:700;font-size:15px;margin-bottom:10px;">회식비 집행 기안</p>';
+    html += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line);"><span>일자</span><b>'+escapeHtml(niceDate(ev.date))+'</b></div>';
+    html += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line);"><span>장소</span><b>'+escapeHtml(ev.location||'-')+'</b></div>';
+    html += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line);"><span>참석 인원</span><b>'+names.length+'명</b></div>';
+    html += '<div style="padding:5px 0;border-bottom:1px solid var(--line);"><span>참석자</span><p style="margin-top:4px;">'+escapeHtml(names.join(', '))+'</p></div>';
+    html += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line);"><span>총 사용액</span><b>'+formatWon(ev.totalAmount)+'원</b></div>';
+    html += '<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line);"><span>1인당 분담액</span><b>'+formatWon(perHead)+'원</b></div>';
+    if(ev.memo) html += '<div style="padding:5px 0;"><span>비고</span><p style="margin-top:4px;">'+escapeHtml(ev.memo)+'</p></div>';
+    html += '</div>';
+    html += '<button class="savebtn" id="dinnerDraft_downloadBtn" type="button" style="width:100%;margin-top:14px;">📄 기안 문서(.docx) 다운로드</button>';
+
+    document.getElementById('teamDinnerDraftBody').innerHTML = html;
+    openSheet('teamDinnerDraftSheet');
+    document.getElementById('dinnerDraft_downloadBtn').addEventListener('click', function(){
+      downloadTeamDinnerDraftDocx(ev, names, perHead);
+    });
+  }
+
 
   function renderEmployeeSettingsScreen(){
     var body = document.getElementById('employeeSettingsBody');
@@ -6868,6 +7308,24 @@
     });
     document.getElementById('employeeFormCloseBtn').addEventListener('click', function(){ closeSheet('employeeFormSheet'); });
     document.getElementById('attendanceCloseBtn').addEventListener('click', function(){ closeSheet('attendanceSheet'); });
+    document.getElementById('teamDinnerBtn').addEventListener('click', async function(){
+      teamDinnerSettings = await loadTeamDinnerSettings();
+      teamDinnerTab = 'balance';
+      teamDinnerBalancePage = 1;
+      teamDinnerEventsPage = 1;
+      renderTeamDinnerScreen();
+      document.getElementById('teamDinnerScreen').classList.add('open');
+    });
+    document.getElementById('teamDinnerBackBtn').addEventListener('click', function(){
+      document.getElementById('teamDinnerScreen').classList.remove('open');
+    });
+    document.getElementById('teamDinnerSettingsBtn').addEventListener('click', function(){
+      renderTeamDinnerSettingsSheet();
+      openSheet('teamDinnerSettingsSheet');
+    });
+    document.getElementById('teamDinnerSettingsCloseBtn').addEventListener('click', function(){ closeSheet('teamDinnerSettingsSheet'); });
+    document.getElementById('teamDinnerFormCloseBtn').addEventListener('click', function(){ closeSheet('teamDinnerFormSheet'); });
+    document.getElementById('teamDinnerDraftCloseBtn').addEventListener('click', function(){ closeSheet('teamDinnerDraftSheet'); });
     document.getElementById('hrEvalBtn').addEventListener('click', function(){
       renderEvaluationScreen();
       document.getElementById('evaluationScreen').classList.add('open');
@@ -6976,6 +7434,7 @@
       employeeJobs = empOpts.jobs;
       employeeWorkLocations = empOpts.workLocations;
       attendanceTypes = empOpts.attendanceTypes;
+      teamDinnerSettings = await loadTeamDinnerSettings();
       evaluations = await loadEvaluations();
       await migrateEvaluationEmployeeNames();
       var backupReminderData = await loadBackupReminder();
